@@ -1334,7 +1334,6 @@ const MobileNav = ({ view, setView }) => {
     { id: 'graph', icon: Share2, label: 'Graph' },
   ];
 
-
   return (
     <div className="fixed bottom-0 left-0 w-full bg-white border-t border-rose-100 p-2 pb-6 z-[100] flex justify-around shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
       {navItems.map(item => (
@@ -1359,26 +1358,24 @@ const MobileNav = ({ view, setView }) => {
 // --- APP LAYOUT ---
 function Dashboard({ currentUser, onLogout }) {
   const [view, setView] = useState('timer');
-  const timerState = usePomodoro();
+  const isMobile = useIsMobile(); // <--- Detects Mobile
 
-  // PASS 'currentUser' TO ALL YOUR STATES
+  // STATE MANAGEMENT
+  const timerState = usePomodoro();
   const [categories, setCategories] = useStickyState(["General", "Personal"], "pomodoro-categories", currentUser);
-  const [ideas, setIdeas] = useStickyState([], "pomodoro-ideas", currentUser);
-  const [projects, setProjects] = useStickyState([], "pomodoro-projects", currentUser);
   const [tasks, setTasks] = useStickyState([], "pomodoro-tasks", currentUser);
   const [note, setNote] = useStickyState("", "pomodoro-daily-note", currentUser);
   const [notes, setNotes] = useStickyState([], "pomodoro-notes-library", currentUser);
   const [activeNoteId, setActiveNoteId] = useState(null);
-  const isMobile = useIsMobile(); // <--- 1. USE THE HOOK
 
   return (
     <div className="flex h-screen w-full bg-[#fff5f7] p-4 md:p-8 gap-8 relative overflow-hidden font-sans selection:bg-rose-200 selection:text-rose-900">
 
-      {/* BACKGROUND BLOBS (Keep these) */}
+      {/* Background Ambience */}
       <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-rose-200/40 rounded-full blur-[100px] pointer-events-none animate-pulse" />
       <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-orange-100/50 rounded-full blur-[100px] pointer-events-none" />
 
-      {/* 1. SIDEBAR (HIDDEN ON MOBILE) */}
+      {/* 1. DESKTOP SIDEBAR (Hidden on Mobile) */}
       {!isMobile && (
         <aside className="w-24 bg-white/80 backdrop-blur-xl rounded-[2rem] border border-white/50 shadow-sm flex flex-col items-center py-8 z-50">
           <div className="mb-8 p-3 bg-rose-100 text-rose-500 rounded-2xl">
@@ -1386,35 +1383,53 @@ function Dashboard({ currentUser, onLogout }) {
           </div>
 
           <nav className="flex-1 flex flex-col gap-6 w-full px-4">
-            <NavButton active={view === 'timer'} onClick={() => setView('timer')} icon={Clock} label="Timer" />
-            <NavButton active={view === 'notes'} onClick={() => setView('notes')} icon={Book} label="Notes" />
-            <NavButton active={view === 'graph'} onClick={() => setView('graph')} icon={Share2} label="Graph" />
+            <button onClick={() => setView('timer')} className={clsx("p-3 rounded-xl transition-all", view === 'timer' ? "bg-rose-50 text-rose-500 shadow-sm" : "text-slate-400 hover:bg-white hover:text-rose-400")}>
+              <TimerIcon size={20} />
+            </button>
+            <button onClick={() => setView('notes')} className={clsx("p-3 rounded-xl transition-all", view === 'notes' ? "bg-rose-50 text-rose-500 shadow-sm" : "text-slate-400 hover:bg-white hover:text-rose-400")}>
+              <Book size={20} />
+            </button>
+            <button onClick={() => setView('graph')} className={clsx("p-3 rounded-xl transition-all", view === 'graph' ? "bg-rose-50 text-rose-500 shadow-sm" : "text-slate-400 hover:bg-white hover:text-rose-400")}>
+              <Share2 size={20} />
+            </button>
           </nav>
 
           <button onClick={onLogout} className="mt-auto p-3 text-slate-300 hover:text-rose-400 hover:bg-rose-50 rounded-xl transition-all">
-            <LogOut size={20} />
+            <Trash2 size={20} />
           </button>
         </aside>
       )}
 
-      {/* 2. MAIN CONTENT AREA (Full width on mobile) */}
+      {/* 2. MAIN CONTENT AREA */}
       <main className={clsx("flex-1 relative z-10 flex flex-col min-h-0", isMobile && "pb-20")}>
-        {/* MOBILE HEADER */}
+
+        {/* Mobile Header */}
         {isMobile && (
           <div className="flex justify-between items-center mb-4 px-2">
-            <h1 className="text-xl font-bold text-rose-950 capitalize">{view}</h1>
-            <button onClick={onLogout} className="text-xs text-rose-400 bg-white px-3 py-1 rounded-full border border-rose-100">Log Out</button>
+            <h1 className="text-xl font-bold text-rose-950 capitalize flex items-center gap-2">
+              {view === 'timer' && <><TimerIcon size={20} /> Focus</>}
+              {view === 'notes' && <><Book size={20} /> Notes</>}
+              {view === 'graph' && <><Share2 size={20} /> Graph</>}
+            </h1>
+            <button onClick={onLogout} className="text-[10px] font-bold text-rose-400 bg-white px-3 py-1.5 rounded-full border border-rose-100 shadow-sm">
+              Log Out
+            </button>
           </div>
         )}
 
-        {view === 'timer' && <TimerView state={timerState} tasks={tasks} setTasks={setTasks} note={note} setNote={setNote} />}
+        {/* VIEWS */}
+        {view === 'timer' && (
+          // Ensure TimerView doesn't crash on mobile props
+          <TimerView state={timerState} tasks={tasks} setTasks={setTasks} note={note} setNote={setNote} />
+        )}
 
         {view === 'notes' && (
           <NotesView
             notes={notes} setNotes={setNotes}
             categories={categories} setCategories={setCategories}
             activeNoteId={activeNoteId} setActiveNoteId={setActiveNoteId}
-            isMobile={isMobile} // <--- PASS isMobile PROP
+
+            isMobile={isMobile} // <--- CRITICAL: Passing the mobile state!
           />
         )}
 
@@ -1427,7 +1442,7 @@ function Dashboard({ currentUser, onLogout }) {
         )}
       </main>
 
-      {/* 3. MOBILE BOTTOM NAV */}
+      {/* 3. MOBILE BOTTOM NAV (Visible only on Mobile) */}
       {isMobile && <MobileNav view={view} setView={setView} />}
 
     </div>

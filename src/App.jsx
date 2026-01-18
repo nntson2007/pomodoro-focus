@@ -6,7 +6,9 @@ import {
   MoreHorizontal, Flag, Layout, List, PlusCircle, ChevronDown,
   Search, Pin, ArrowRightCircle,
   Book, FolderOpen, FileText, Star, Sidebar as SidebarIcon,
-  Share2
+  Share2, ArrowLeft,
+  Timer as TimerIcon,
+  Book, Share2
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -672,8 +674,8 @@ const ProjectsView = ({ projects, setProjects }) => {
   );
 };
 
-// --- COMPONENT: NOTES VIEW (With Category Editing) ---
-const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, setActiveNoteId }) => {
+// --- COMPONENT: NOTES VIEW (Mobile Responsive) ---
+const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, setActiveNoteId, isMobile }) => {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [linkSearch, setLinkSearch] = useState("");
@@ -740,7 +742,6 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
     }));
   };
 
-  // --- NEW: CATEGORY LOGIC ---
   const handleCategoryChange = (e) => {
     const val = e.target.value;
     if (val === "ADD_NEW_CAT_OPTION") {
@@ -753,11 +754,9 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
 
   const saveNewCategory = () => {
     if (newCatName.trim()) {
-      // 1. Add to global categories if unique
       if (!categories.includes(newCatName)) {
         setCategories([...categories, newCatName]);
       }
-      // 2. Apply to current note
       updateNote(activeNote.id, 'category', newCatName);
     }
     setIsCreatingCat(false);
@@ -770,135 +769,154 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
     return matchesCategory && matchesSearch;
   });
 
+  // --- MOBILE LOGIC ---
+  const showList = !isMobile || (isMobile && !activeNoteId);
+  const showEditor = !isMobile || (isMobile && activeNoteId);
+
   return (
-    <div className="w-full h-full flex gap-6 animate-in fade-in duration-500 pb-24">
+    <div className={clsx("w-full h-full flex gap-6 animate-in fade-in duration-500", !isMobile && "pb-24")}>
 
-      {/* 1. SIDEBAR */}
-      <div className="w-64 flex flex-col gap-4">
-        <div className="flex items-center gap-2 px-2 text-rose-950/50">
-          <Book size={16} /> <span className="text-xs font-bold uppercase tracking-widest">Library</span>
-        </div>
+      {/* 1. LIST SIDEBAR (Shows on Desktop OR Mobile-List-View) */}
+      {showList && (
+        <div className={clsx("flex flex-col gap-4", isMobile ? "w-full" : "w-64")}>
+          {!isMobile && (
+            <div className="flex items-center gap-2 px-2 text-rose-950/50">
+              <Book size={16} /> <span className="text-xs font-bold uppercase tracking-widest">Library</span>
+            </div>
+          )}
 
-        {/* Category Filters */}
-        <div className="bg-white/60 rounded-2xl border border-rose-100/50 p-3 space-y-1">
-          <button onClick={() => setSelectedCategory("All")} className={cn("w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-colors", selectedCategory === "All" ? "bg-white text-rose-600 shadow-sm" : "text-slate-400 hover:bg-rose-50")}>
-            All Notes
-          </button>
-          {categories.map(cat => (
-            <button key={cat} onClick={() => setSelectedCategory(cat)} className={cn("w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-colors", selectedCategory === cat ? "bg-white text-rose-600 shadow-sm" : "text-slate-400 hover:bg-rose-50")}>
-              {cat}
+          {/* Category Filters */}
+          <div className="bg-white/60 rounded-2xl border border-rose-100/50 p-3 space-y-1">
+            <button onClick={() => setSelectedCategory("All")} className={clsx("w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-colors", selectedCategory === "All" ? "bg-white text-rose-600 shadow-sm" : "text-slate-400 hover:bg-rose-50")}>
+              All Notes
             </button>
-          ))}
-        </div>
-
-        {/* Note List */}
-        <div className="flex-1 bg-white/60 rounded-2xl border border-rose-100/50 p-3 flex flex-col min-h-0">
-          <div className="flex justify-between items-center mb-3 px-1">
-            <span className="text-[10px] font-bold text-rose-300 uppercase">{filteredNotes.length} Notes</span>
-            <button onClick={createNote} className="text-rose-400 hover:bg-rose-100 p-1 rounded"><Plus size={14} /></button>
-          </div>
-          <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search..." className="w-full bg-white/50 border border-rose-100 rounded-lg px-2 py-1.5 text-xs outline-none text-rose-800 placeholder:text-rose-300 mb-2" />
-          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1">
-            {filteredNotes.map(note => (
-              <div key={note.id} onClick={() => setActiveNoteId(note.id)} className={cn("group flex justify-between p-2 rounded-lg cursor-pointer transition-all", activeNoteId === note.id ? "bg-white shadow-sm text-rose-600" : "hover:bg-white/50 text-slate-600")}>
-                <span className="text-xs font-bold truncate">{note.title || "Untitled"}</span>
-                {activeNoteId === note.id && <button onClick={(e) => deleteNote(e, note.id)} className="text-rose-300 hover:text-red-400"><Trash2 size={12} /></button>}
-              </div>
+            {categories.map(cat => (
+              <button key={cat} onClick={() => setSelectedCategory(cat)} className={clsx("w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-colors", selectedCategory === cat ? "bg-white text-rose-600 shadow-sm" : "text-slate-400 hover:bg-rose-50")}>
+                {cat}
+              </button>
             ))}
           </div>
-        </div>
-      </div>
 
-      {/* 2. EDITOR */}
-      <div className="flex-1 bg-white rounded-[2rem] border border-rose-100 shadow-sm p-8 flex gap-8 overflow-hidden relative">
-        {activeNote ? (
-          <>
-            <div className="flex-1 flex flex-col h-full">
-              {/* Header Metadata */}
-              <div className="flex items-center gap-3 text-[10px] text-slate-400 mb-6">
-
-                {/* DYNAMIC CATEGORY SELECTOR */}
-                {isCreatingCat ? (
-                  <div className="flex items-center gap-1 animate-in slide-in-from-left-2 duration-300">
-                    <input
-                      autoFocus
-                      value={newCatName}
-                      onChange={e => setNewCatName(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && saveNewCategory()}
-                      placeholder="New Category..."
-                      className="bg-rose-50 border border-rose-200 text-rose-600 px-2 py-1 rounded text-[10px] font-bold outline-none w-32"
-                    />
-                    <button onClick={saveNewCategory} className="text-emerald-500 hover:bg-emerald-50 p-1 rounded"><Check size={12} /></button>
-                    <button onClick={() => setIsCreatingCat(false)} className="text-rose-400 hover:bg-rose-50 p-1 rounded"><X size={12} /></button>
-                  </div>
-                ) : (
-                  <div className="relative group">
-                    <select
-                      value={activeNote.category}
-                      onChange={handleCategoryChange}
-                      className="appearance-none bg-rose-50 hover:bg-rose-100 text-rose-500 px-3 py-1 rounded-md font-bold cursor-pointer outline-none transition-colors pr-6"
-                    >
-                      {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                      <option disabled>──────────</option>
-                      <option value="ADD_NEW_CAT_OPTION">+ Create New...</option>
-                    </select>
-                    <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-rose-400 pointer-events-none" />
-                  </div>
-                )}
-
-                <span>Last edited: {activeNote.updatedAt}</span>
-              </div>
-
-              <input
-                value={activeNote.title}
-                onChange={e => updateNote(activeNote.id, 'title', e.target.value)}
-                className="text-3xl font-bold text-rose-950 outline-none bg-transparent mb-4 placeholder:text-rose-200"
-                placeholder="Untitled Note"
-              />
-              <textarea
-                value={activeNote.body}
-                onChange={e => updateNote(activeNote.id, 'body', e.target.value)}
-                placeholder="Start writing..."
-                className="flex-1 w-full resize-none outline-none text-base text-slate-600 leading-7 custom-scrollbar bg-transparent font-medium"
-              />
+          {/* Note List */}
+          <div className="flex-1 bg-white/60 rounded-2xl border border-rose-100/50 p-3 flex flex-col min-h-0">
+            <div className="flex justify-between items-center mb-3 px-1">
+              <span className="text-[10px] font-bold text-rose-300 uppercase">{filteredNotes.length} Notes</span>
+              <button onClick={createNote} className="text-rose-400 hover:bg-rose-100 p-1 rounded"><Plus size={14} /></button>
             </div>
-
-            {/* Right Panel: Connections */}
-            <div className="w-64 border-l border-rose-50 pl-6 flex flex-col">
-              <div className="flex items-center gap-2 text-xs font-bold text-rose-950 mb-4">
-                <LinkIcon size={14} className="text-rose-400" /> Connections
-              </div>
-              <button onClick={createSonNote} className="w-full mb-4 bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors">
-                <Rocket size={12} /> Create Child Note
-              </button>
-              <div className="relative mb-2">
-                <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-rose-300" />
-                <input value={linkSearch} onChange={e => setLinkSearch(e.target.value)} placeholder="Link to..." className="w-full pl-7 pr-2 py-1.5 bg-slate-50 border border-transparent focus:border-rose-200 rounded-lg text-[10px] outline-none transition-all" />
-              </div>
-              <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1">
-                {notes
-                  .filter(n => n.id !== activeNote.id)
-                  .filter(n => n.title.toLowerCase().includes(linkSearch.toLowerCase()))
-                  .map(other => {
-                    const isLinked = (activeNote.links || []).includes(other.id);
-                    return (
-                      <button key={other.id} onClick={() => toggleLink(other.id)} className={cn("w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-between", isLinked ? "bg-rose-100 text-rose-700 border border-rose-200" : "bg-slate-50 text-slate-500 border border-transparent hover:bg-rose-50")}>
-                        <span className="truncate">{other.title || "Untitled"}</span>
-                        {isLinked && <Check size={12} />}
-                      </button>
-                    );
-                  })
-                }
-              </div>
+            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search..." className="w-full bg-white/50 border border-rose-100 rounded-lg px-2 py-1.5 text-xs outline-none text-rose-800 placeholder:text-rose-300 mb-2" />
+            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1">
+              {filteredNotes.map(note => (
+                <div key={note.id} onClick={() => setActiveNoteId(note.id)} className={clsx("group flex justify-between p-2 rounded-lg cursor-pointer transition-all", activeNoteId === note.id ? "bg-white shadow-sm text-rose-600" : "hover:bg-white/50 text-slate-600")}>
+                  <span className="text-xs font-bold truncate">{note.title || "Untitled"}</span>
+                  {activeNoteId === note.id && <button onClick={(e) => deleteNote(e, note.id)} className="text-rose-300 hover:text-red-400"><Trash2 size={12} /></button>}
+                </div>
+              ))}
             </div>
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-rose-200 opacity-50">
-            <Book size={64} className="mb-4" />
-            <p className="font-bold uppercase tracking-widest text-sm">Select a note to edit</p>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* 2. EDITOR (Shows on Desktop OR Mobile-Detail-View) */}
+      {showEditor && (
+        <div className={clsx("flex-1 bg-white rounded-[2rem] border border-rose-100 shadow-sm p-6 flex gap-8 overflow-hidden relative", isMobile && "fixed inset-0 z-[200] rounded-none p-4")}>
+
+          {/* MOBILE BACK BUTTON */}
+          {isMobile && (
+            <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
+              <button onClick={() => setActiveNoteId(null)} className="bg-rose-50 text-rose-500 p-2 rounded-full hover:bg-rose-100 border border-rose-100 shadow-sm">
+                <ArrowLeft size={20} />
+              </button>
+            </div>
+          )}
+
+          {activeNote ? (
+            <>
+              <div className={clsx("flex-1 flex flex-col h-full", isMobile && "mt-12")}>
+                {/* Header Metadata */}
+                <div className="flex items-center gap-3 text-[10px] text-slate-400 mb-6">
+                  {isCreatingCat ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        autoFocus
+                        value={newCatName}
+                        onChange={e => setNewCatName(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && saveNewCategory()}
+                        placeholder="New Category..."
+                        className="bg-rose-50 border border-rose-200 text-rose-600 px-2 py-1 rounded text-[10px] font-bold outline-none w-32"
+                      />
+                      <button onClick={saveNewCategory} className="text-emerald-500 hover:bg-emerald-50 p-1 rounded"><Check size={12} /></button>
+                      <button onClick={() => setIsCreatingCat(false)} className="text-rose-400 hover:bg-rose-50 p-1 rounded"><X size={12} /></button>
+                    </div>
+                  ) : (
+                    <div className="relative group">
+                      <select
+                        value={activeNote.category}
+                        onChange={handleCategoryChange}
+                        className="appearance-none bg-rose-50 hover:bg-rose-100 text-rose-500 px-3 py-1 rounded-md font-bold cursor-pointer outline-none transition-colors pr-6"
+                      >
+                        {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                        <option disabled>──────────</option>
+                        <option value="ADD_NEW_CAT_OPTION">+ Create New...</option>
+                      </select>
+                      <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-rose-400 pointer-events-none" />
+                    </div>
+                  )}
+                  <span>{activeNote.updatedAt}</span>
+                </div>
+
+                <input
+                  value={activeNote.title}
+                  onChange={e => updateNote(activeNote.id, 'title', e.target.value)}
+                  className="text-3xl font-bold text-rose-950 outline-none bg-transparent mb-4 placeholder:text-rose-200"
+                  placeholder="Untitled Note"
+                />
+                <textarea
+                  value={activeNote.body}
+                  onChange={e => updateNote(activeNote.id, 'body', e.target.value)}
+                  placeholder="Start writing..."
+                  className="flex-1 w-full resize-none outline-none text-base text-slate-600 leading-7 custom-scrollbar bg-transparent font-medium"
+                />
+              </div>
+
+              {/* Right Panel: Connections (Hidden on Mobile to save space, or stacked) */}
+              {!isMobile && (
+                <div className="w-64 border-l border-rose-50 pl-6 flex flex-col">
+                  <div className="flex items-center gap-2 text-xs font-bold text-rose-950 mb-4">
+                    <LinkIcon size={14} className="text-rose-400" /> Connections
+                  </div>
+                  <button onClick={createSonNote} className="w-full mb-4 bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors">
+                    <Rocket size={12} /> Create Child Note
+                  </button>
+                  <div className="relative mb-2">
+                    <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-rose-300" />
+                    <input value={linkSearch} onChange={e => setLinkSearch(e.target.value)} placeholder="Link to..." className="w-full pl-7 pr-2 py-1.5 bg-slate-50 border border-transparent focus:border-rose-200 rounded-lg text-[10px] outline-none transition-all" />
+                  </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1">
+                    {notes
+                      .filter(n => n.id !== activeNote.id)
+                      .filter(n => n.title.toLowerCase().includes(linkSearch.toLowerCase()))
+                      .map(other => {
+                        const isLinked = (activeNote.links || []).includes(other.id);
+                        return (
+                          <button key={other.id} onClick={() => toggleLink(other.id)} className={clsx("w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-between", isLinked ? "bg-rose-100 text-rose-700 border border-rose-200" : "bg-slate-50 text-slate-500 border border-transparent hover:bg-rose-50")}>
+                            <span className="truncate">{other.title || "Untitled"}</span>
+                            {isLinked && <Check size={12} />}
+                          </button>
+                        );
+                      })
+                    }
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-rose-200 opacity-50">
+              <Book size={64} className="mb-4" />
+              <p className="font-bold uppercase tracking-widest text-sm">Select a note</p>
+            </div>
+          )}
+        </div>
+      )}
 
     </div>
   );
@@ -1299,6 +1317,47 @@ const LoginView = ({ onLogin }) => {
   );
 };
 
+// --- MOBILE HELPER: Detect Screen Size ---
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  return isMobile;
+};
+
+// --- COMPONENT: MOBILE BOTTOM NAV ---
+const MobileNav = ({ view, setView }) => {
+  const navItems = [
+    { id: 'timer', icon: TimerIcon, label: 'Focus' },
+    { id: 'notes', icon: Book, label: 'Notes' },
+    { id: 'graph', icon: Share2, label: 'Graph' },
+  ];
+
+
+  return (
+    <div className="fixed bottom-0 left-0 w-full bg-white border-t border-rose-100 p-2 pb-6 z-[100] flex justify-around shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+      {navItems.map(item => (
+        <button
+          key={item.id}
+          onClick={() => setView(item.id)}
+          className={clsx(
+            "flex flex-col items-center gap-1 p-2 rounded-xl transition-all w-20",
+            view === item.id
+              ? "text-rose-500 bg-rose-50"
+              : "text-slate-400 hover:text-slate-600"
+          )}
+        >
+          <item.icon size={20} strokeWidth={view === item.id ? 3 : 2} />
+          <span className="text-[10px] font-bold uppercase tracking-wide">{item.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+};
+
 // --- APP LAYOUT ---
 function Dashboard({ currentUser, onLogout }) {
   const [view, setView] = useState('timer');
@@ -1312,86 +1371,68 @@ function Dashboard({ currentUser, onLogout }) {
   const [note, setNote] = useStickyState("", "pomodoro-daily-note", currentUser);
   const [notes, setNotes] = useStickyState([], "pomodoro-notes-library", currentUser);
   const [activeNoteId, setActiveNoteId] = useState(null);
+  const isMobile = useIsMobile(); // <--- 1. USE THE HOOK
 
   return (
-    <div className={cn(
-      "h-screen bg-[#fff5f7] flex flex-col relative overflow-hidden font-sans selection:bg-rose-200 selection:text-rose-900",
-      // FIX 1: Ensure 'graph' and 'notes' trigger the Wide Layout (start aligned)
-      (view === 'projects' || view === 'ideas' || view === 'notes' || view === 'graph')
-        ? "items-center justify-start"
-        : "items-center justify-center"
-    )}>
+    <div className="flex h-screen w-full bg-[#fff5f7] p-4 md:p-8 gap-8 relative overflow-hidden font-sans selection:bg-rose-200 selection:text-rose-900">
 
-      {/* Background Ambience */}
-      <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-rose-200/30 rounded-full blur-[100px] pointer-events-none animate-pulse" />
-      <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-orange-100/40 rounded-full blur-[100px] pointer-events-none" />
+      {/* BACKGROUND BLOBS (Keep these) */}
+      <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-rose-200/40 rounded-full blur-[100px] pointer-events-none animate-pulse" />
+      <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-orange-100/50 rounded-full blur-[100px] pointer-events-none" />
 
-      {/* Main Content Area */}
-      <main className={cn(
-        "relative z-10 w-full px-6 flex flex-col transition-all duration-500 ease-in-out",
-        // FIX 2: Ensure 'graph' and 'notes' trigger the Wide Container (max-w-6xl)
-        (view === 'projects' || view === 'ideas' || view === 'notes' || view === 'graph')
-          ? "max-w-6xl h-full pt-12 pb-32"
-          : "max-w-md items-center justify-center"
-      )}>
+      {/* 1. SIDEBAR (HIDDEN ON MOBILE) */}
+      {!isMobile && (
+        <aside className="w-24 bg-white/80 backdrop-blur-xl rounded-[2rem] border border-white/50 shadow-sm flex flex-col items-center py-8 z-50">
+          <div className="mb-8 p-3 bg-rose-100 text-rose-500 rounded-2xl">
+            <TimerIcon size={24} />
+          </div>
 
-        {/* TIMER VIEW */}
-        {view === 'timer' && <TimerView timerState={timerState} />}
+          <nav className="flex-1 flex flex-col gap-6 w-full px-4">
+            <NavButton active={view === 'timer'} onClick={() => setView('timer')} icon={Clock} label="Timer" />
+            <NavButton active={view === 'notes'} onClick={() => setView('notes')} icon={Book} label="Notes" />
+            <NavButton active={view === 'graph'} onClick={() => setView('graph')} icon={Share2} label="Graph" />
+          </nav>
 
-        {/* TASKS VIEW */}
-        {view === 'todo' && <TasksView tasks={tasks} setTasks={setTasks} />}
+          <button onClick={onLogout} className="mt-auto p-3 text-slate-300 hover:text-rose-400 hover:bg-rose-50 rounded-xl transition-all">
+            <LogOut size={20} />
+          </button>
+        </aside>
+      )}
 
-        {/* PLAN VIEW */}
-        {view === 'plan' && <PlanView note={note} setNote={setNote} />}
-
-        {/* IDEAS VIEW */}
-        {view === 'ideas' && (
-          <IdeasView
-            ideas={ideas} setIdeas={setIdeas}
-            categories={categories} setCategories={setCategories}
-            projects={projects} setProjects={setProjects}
-          />
+      {/* 2. MAIN CONTENT AREA (Full width on mobile) */}
+      <main className={clsx("flex-1 relative z-10 flex flex-col min-h-0", isMobile && "pb-20")}>
+        {/* MOBILE HEADER */}
+        {isMobile && (
+          <div className="flex justify-between items-center mb-4 px-2">
+            <h1 className="text-xl font-bold text-rose-950 capitalize">{view}</h1>
+            <button onClick={onLogout} className="text-xs text-rose-400 bg-white px-3 py-1 rounded-full border border-rose-100">Log Out</button>
+          </div>
         )}
 
-        {/* --- THE UPDATED SECTIONS --- */}
+        {view === 'timer' && <TimerView state={timerState} tasks={tasks} setTasks={setTasks} note={note} setNote={setNote} />}
 
-        {/* NOTES VIEW */}
         {view === 'notes' && (
           <NotesView
             notes={notes} setNotes={setNotes}
-            categories={categories}
-            setCategories={setCategories}     // <--- ADD THIS LINE
-            activeNoteId={activeNoteId}
-            setActiveNoteId={setActiveNoteId}
+            categories={categories} setCategories={setCategories}
+            activeNoteId={activeNoteId} setActiveNoteId={setActiveNoteId}
+            isMobile={isMobile} // <--- PASS isMobile PROP
           />
         )}
 
-        {/* GRAPH VIEW: Now receives navigation props to zoom/pan/open */}
         {view === 'graph' && (
           <GraphView
-            notes={notes}
-            setNotes={setNotes}
-            activeNoteId={activeNoteId}       // <--- CRITICAL FIX
-            setActiveNoteId={setActiveNoteId} // <--- CRITICAL FIX
-            setView={setView}                 // <--- CRITICAL FIX
+            notes={notes} setNotes={setNotes}
+            activeNoteId={activeNoteId} setActiveNoteId={setActiveNoteId}
+            setView={setView}
           />
-        )}
-
-        {/* PROJECTS VIEW */}
-        {view === 'projects' && (
-          <ProjectsView projects={projects} setProjects={setProjects} />
         )}
       </main>
 
-      {/* Floating Dock */}
-      <div className="absolute bottom-8 z-50">
-        <NavBar currentView={view} setView={setView} />
-      </div>
-      <button onClick={onLogout} className="fixed top-4 right-4 z-50 text-xs bg-white/50 px-3 py-1 rounded-full hover:bg-white text-slate-500">
-        Logout ({currentUser})
-      </button>
-    </div>
+      {/* 3. MOBILE BOTTOM NAV */}
+      {isMobile && <MobileNav view={view} setView={setView} />}
 
+    </div>
   );
 }
 

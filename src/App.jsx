@@ -1419,8 +1419,18 @@ function Dashboard({ currentUser, onLogout }) {
 
         {/* VIEWS */}
         {view === 'timer' && (
-          // Ensure TimerView doesn't crash on mobile props
-          <TimerView state={timerState} tasks={tasks} setTasks={setTasks} note={note} setNote={setNote} />
+          <div className="flex flex-col gap-6 max-w-4xl mx-auto w-full pb-24">
+
+            {/* 1. FIX: Changed 'state' to 'timerState' so it doesn't crash */}
+            <TimerView timerState={timerState} />
+
+            {/* 2. FIX: Added these back so you can actually see your Tasks and Plan */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <TasksView tasks={tasks} setTasks={setTasks} />
+              <PlanView note={note} setNote={setNote} />
+            </div>
+
+          </div>
         )}
 
         {view === 'notes' && (

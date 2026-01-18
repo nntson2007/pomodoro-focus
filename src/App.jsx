@@ -6,9 +6,7 @@ import {
   MoreHorizontal, Flag, Layout, List, PlusCircle, ChevronDown,
   Search, Pin, ArrowRightCircle,
   Book, FolderOpen, FileText, Star, Sidebar as SidebarIcon,
-  Share2, ArrowLeft,
-  Timer as TimerIcon,
-  Book, Share2
+  Share2, ArrowLeft
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';

@@ -16,15 +16,18 @@ function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
-// --- HOOKS ---
+// --- UPDATED HOOK: POMODORO (With Custom Time) ---
 const usePomodoro = () => {
   const [mode, setMode] = useState('focus');
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
   const [cycles, setCycles] = useState(0);
 
+  // Custom Focus Duration (in minutes) - Default 25
+  const [customFocusTime, setCustomFocusTime] = useState(25);
+
   const modes = {
-    focus: { label: 'Focus', time: 25 * 60, color: 'text-rose-600' },
+    focus: { label: 'Focus', time: customFocusTime * 60, color: 'text-rose-600' },
     short: { label: 'Short Break', time: 5 * 60, color: 'text-teal-600' },
     long: { label: 'Long Break', time: 15 * 60, color: 'text-blue-600' },
   };
@@ -53,189 +56,187 @@ const usePomodoro = () => {
     setTimeLeft(modes[newMode].time);
   };
 
+  // Update time when user changes custom duration (only if currently in focus mode & paused)
+  const updateCustomTime = (newMinutes) => {
+    const safeMinutes = Math.max(1, Math.min(120, newMinutes)); // Limit 1-120 mins
+    setCustomFocusTime(safeMinutes);
+    if (mode === 'focus' && !isActive) {
+      setTimeLeft(safeMinutes * 60);
+    }
+  };
+
   const formatTime = (seconds) => {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  return { mode, modes, timeLeft, isActive, cycles, toggleTimer, resetTimer, switchMode, formatTime };
+  return {
+    mode, modes, timeLeft, isActive, cycles,
+    toggleTimer, resetTimer, switchMode, formatTime,
+    customFocusTime, updateCustomTime
+  };
 };
 
-// --- VIEWS ---
+// --- COMPONENT: TIMER VIEW (Fixed & Customizable) ---
+const TimerView = ({ state, tasks, setTasks, note, setNote }) => {
 
-// 1. TIMER VIEW (Refined & Centered)
-const TimerView = ({ timerState }) => {
-  const { mode, modes, timeLeft, isActive, cycles, toggleTimer, resetTimer, switchMode, formatTime } = timerState;
+  // Helper for Task List
+  const ListCard = ({ title, icon: Icon, items = [], setItems, placeholder }) => {
+    const [newItem, setNewItem] = useState("");
 
-  return (
-    <div className="flex flex-col items-center animate-in fade-in duration-700 w-full max-w-sm mx-auto">
-      {/* Mode Tabs */}
-      <div className="flex bg-rose-100/50 p-1.5 rounded-full mb-10 shadow-inner">
-        {Object.keys(modes).map((m) => (
-          <button
-            key={m}
-            onClick={() => switchMode(m)}
-            className={cn(
-              "px-5 py-1.5 rounded-full text-xs font-semibold transition-all duration-300",
-              mode === m
-                ? "bg-white text-rose-600 shadow-sm transform scale-105"
-                : "text-rose-400 hover:text-rose-500"
-            )}
-          >
-            {modes[m].label}
-          </button>
-        ))}
-      </div>
+    const addItem = () => {
+      if (!newItem.trim()) return;
+      setItems([...items, { id: Date.now(), text: newItem, done: false }]);
+      setNewItem("");
+    };
 
-      {/* Timer Display */}
-      <div className="relative mb-10 text-center">
-        <div className="text-[7rem] leading-none font-mono font-bold tracking-tighter text-rose-950/90 tabular-nums select-none drop-shadow-sm">
-          {formatTime(timeLeft)}
+    const toggleItem = (id) => {
+      setItems(items.map(i => i.id === id ? { ...i, done: !i.done } : i));
+    };
+
+    const deleteItem = (id) => {
+      setItems(items.filter(i => i.id !== id));
+    };
+
+    return (
+      <div className="bg-white/60 backdrop-blur-xl rounded-3xl p-6 border border-rose-100/50 shadow-sm flex flex-col h-96">
+        <div className="flex items-center gap-2 mb-4 text-rose-950 font-bold">
+          <div className="p-2 bg-rose-100 rounded-xl text-rose-500"><Icon size={18} /></div>
+          <span>{title}</span>
         </div>
-        <p className="text-rose-400 font-medium mt-2 tracking-widest uppercase text-xs opacity-60">
-          {isActive ? 'Staying Focused' : 'Ready to Start'}
-        </p>
-      </div>
 
-      {/* Controls */}
-      <div className="flex items-center gap-6 mb-8">
-        <button
-          onClick={toggleTimer}
-          className={cn(
-            "w-20 h-20 rounded-[2rem] flex items-center justify-center text-white shadow-xl shadow-rose-200/50 transition-all hover:scale-105 active:scale-95",
-            isActive ? "bg-rose-400" : "bg-rose-500"
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2">
+          {items.length === 0 && (
+            <div className="text-center text-rose-300 text-xs mt-10 italic">No items yet...</div>
           )}
-        >
-          {isActive ? <Pause fill="currentColor" size={28} /> : <Play fill="currentColor" className="ml-1" size={28} />}
-        </button>
+          {items.map(item => (
+            <div key={item.id} className="group flex items-center gap-3 text-sm text-slate-600 bg-white/50 p-2 rounded-xl border border-transparent hover:border-rose-100 transition-all">
+              <button
+                onClick={() => toggleItem(item.id)}
+                className={clsx("w-5 h-5 rounded-full border flex items-center justify-center transition-colors", item.done ? "bg-rose-400 border-rose-400 text-white" : "border-rose-200 hover:border-rose-400")}
+              >
+                {item.done && <Check size={12} strokeWidth={3} />}
+              </button>
+              <span className={clsx("flex-1 truncate", item.done && "line-through text-rose-200")}>{item.text}</span>
+              <button onClick={() => deleteItem(item.id)} className="opacity-0 group-hover:opacity-100 text-rose-300 hover:text-red-400"><X size={14} /></button>
+            </div>
+          ))}
+        </div>
 
-        <button
-          onClick={resetTimer}
-          className="w-14 h-14 rounded-2xl bg-white border-2 border-rose-50 text-rose-300 flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-colors shadow-sm"
-        >
-          <RotateCcw size={20} />
-        </button>
+        <div className="mt-4 relative">
+          <input
+            value={newItem}
+            onChange={e => setNewItem(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addItem()}
+            placeholder={placeholder}
+            className="w-full bg-white border border-rose-100 rounded-xl py-2 pl-3 pr-8 text-sm outline-none focus:border-rose-300 placeholder:text-rose-200 text-rose-900"
+          />
+          <button onClick={addItem} className="absolute right-2 top-1/2 -translate-y-1/2 text-rose-400 hover:bg-rose-50 p-1 rounded-md"><Plus size={14} /></button>
+        </div>
       </div>
-
-      {/* Session Counter */}
-      <div className="bg-white/60 px-4 py-2 rounded-full border border-rose-100/50 flex items-center gap-2 text-rose-900/40 text-xs font-bold">
-        <CheckCircle2 size={14} />
-        <span>{cycles} SESSIONS DONE</span>
-      </div>
-    </div>
-  );
-};
-
-// 2. TASKS VIEW (Fully Functional)
-const TasksView = ({ tasks, setTasks }) => {
-  const [inputValue, setInputValue] = useState("");
-
-  const addTask = (e) => {
-    if (e.key === 'Enter' && inputValue.trim()) {
-      setTasks([...tasks, { id: Date.now(), text: inputValue, done: false }]);
-      setInputValue("");
-    }
-  };
-
-  const toggleTask = (id) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, done: !t.done } : t));
-  };
-
-  const deleteTask = (id) => {
-    setTasks(tasks.filter(t => t.id !== id));
+    );
   };
 
   return (
-    <div className="w-full max-w-sm mx-auto h-[400px] flex flex-col animate-in slide-in-from-right-8 duration-500">
-      <h2 className="text-2xl font-bold text-rose-950 mb-6 text-center">Focus Tasks</h2>
+    <div className="flex-1 overflow-y-auto custom-scrollbar h-full">
+      <div className="max-w-4xl mx-auto flex flex-col gap-8 pb-24">
 
-      {/* Input */}
-      <div className="relative mb-6 group">
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={addTask}
-          placeholder="What needs to be done?"
-          className="w-full bg-white px-5 py-4 rounded-2xl border-2 border-rose-50 outline-none text-rose-900 placeholder:text-rose-300 focus:border-rose-200 focus:shadow-lg focus:shadow-rose-100/50 transition-all"
-        />
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-rose-200 group-focus-within:text-rose-400">
-          <Plus size={20} />
-        </div>
-      </div>
+        {/* 1. CLOCK SECTION */}
+        <div className="flex flex-col items-center justify-center py-12">
 
-      {/* Task List */}
-      <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
-        {tasks.length === 0 && (
-          <div className="text-center text-rose-300/50 mt-10 text-sm">No tasks yet. Stay focused!</div>
-        )}
+          {/* Mode Switcher */}
+          <div className="flex items-center gap-2 p-1 bg-white/50 rounded-full border border-rose-100 mb-8 shadow-sm">
+            {['focus', 'short', 'long'].map((mode) => (
+              <button
+                key={mode}
+                onClick={() => state.switchMode(mode)} // <--- FIXED: uses switchMode now
+                className={clsx(
+                  "px-4 py-1.5 rounded-full text-xs font-bold transition-all capitalize",
+                  state.mode === mode
+                    ? `bg-white shadow-sm ${state.modes[mode].color}`
+                    : "text-rose-300 hover:text-rose-500"
+                )}
+              >
+                {state.modes[mode].label}
+              </button>
+            ))}
+          </div>
 
-        {tasks.map(task => (
-          <div key={task.id} className="group flex items-center gap-3 bg-white/40 hover:bg-white p-3 rounded-xl transition-all border border-transparent hover:border-rose-100 hover:shadow-sm">
+          {/* Time Display */}
+          <div className="relative group">
+            <div className="text-[9rem] font-bold text-rose-950 font-mono tracking-tighter leading-none select-none drop-shadow-sm">
+              {state.formatTime(state.timeLeft)}
+            </div>
+
+            {/* Custom Time Controls (Visible when paused in Focus mode) */}
+            {state.mode === 'focus' && !state.isActive && (
+              <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 backdrop-blur px-3 py-1 rounded-full border border-rose-100 shadow-sm">
+                <button onClick={() => state.updateCustomTime(state.customFocusTime - 5)} className="text-rose-400 hover:bg-rose-100 p-1 rounded-full text-[10px] font-bold">-5</button>
+                <span className="text-xs font-bold text-rose-600 w-12 text-center">{state.customFocusTime} min</span>
+                <button onClick={() => state.updateCustomTime(state.customFocusTime + 5)} className="text-rose-400 hover:bg-rose-100 p-1 rounded-full text-[10px] font-bold">+5</button>
+              </div>
+            )}
+          </div>
+
+          <div className="text-rose-300 font-bold tracking-widest text-xs uppercase mt-8 mb-10 animate-pulse">
+            {state.isActive ? 'Focusing...' : 'Ready to Start'}
+          </div>
+
+          {/* Play Controls */}
+          <div className="flex items-center gap-4">
             <button
-              onClick={() => toggleTask(task.id)}
-              className={cn(
-                "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors",
-                task.done ? "bg-rose-400 border-rose-400" : "border-rose-200 hover:border-rose-300"
-              )}
+              onClick={state.toggleTimer}
+              className="w-24 h-24 bg-rose-500 hover:bg-rose-600 rounded-[2.5rem] text-white flex items-center justify-center shadow-2xl shadow-rose-400/50 transition-all hover:scale-105 active:scale-95"
             >
-              {task.done && <Check size={12} className="text-white" />}
+              {state.isActive ? <Pause size={36} fill="currentColor" /> : <Play size={36} fill="currentColor" className="ml-1" />}
             </button>
-            <span className={cn("flex-1 text-sm text-rose-900 font-medium transition-opacity", task.done && "line-through opacity-40")}>
-              {task.text}
-            </span>
-            <button
-              onClick={() => deleteTask(task.id)}
-              className="text-rose-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
-            >
-              <Trash2 size={16} />
+            <button onClick={state.resetTimer} className="w-16 h-16 bg-white hover:bg-rose-50 text-rose-300 border border-rose-100 rounded-[1.8rem] flex items-center justify-center transition-all">
+              <RotateCcw size={22} />
             </button>
           </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// 3. PLAN VIEW (Goals & Notes)
-const PlanView = ({ note, setNote }) => {
-  return (
-    <div className="w-full max-w-sm mx-auto h-[400px] flex flex-col animate-in slide-in-from-right-8 duration-500">
-      <h2 className="text-2xl font-bold text-rose-950 mb-6 text-center">Daily Plan</h2>
-
-      <div className="flex-1 bg-white p-6 rounded-3xl border-2 border-rose-50 shadow-sm relative overflow-hidden group">
-        <textarea
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="What is your main intention for today?&#10;&#10;• Morning: ...&#10;• Afternoon: ...&#10;• Evening: ..."
-          className="w-full h-full resize-none outline-none text-rose-900 placeholder:text-rose-300/50 bg-transparent text-sm leading-relaxed"
-        />
-        <div className="absolute bottom-4 right-4 text-rose-200 pointer-events-none">
-          <Calendar size={20} />
         </div>
+
+        {/* 2. TASKS & PLAN */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full px-4">
+          <ListCard
+            title="Focus Session Tasks"
+            icon={ListTodo}
+            items={tasks} setItems={setTasks}
+            placeholder="What to do now..."
+          />
+
+          <div className="bg-white/60 backdrop-blur-xl rounded-3xl p-6 border border-rose-100/50 shadow-sm flex flex-col h-96">
+            <div className="flex items-center gap-2 mb-4 text-rose-950 font-bold">
+              <div className="p-2 bg-rose-100 rounded-xl text-rose-500"><Calendar size={18} /></div>
+              <span>Daily Intention</span>
+            </div>
+            <textarea
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              placeholder="• Morning Goal...&#10;• Afternoon Goal...&#10;• Evening Relax..."
+              className="flex-1 w-full bg-transparent resize-none outline-none text-sm text-slate-600 leading-relaxed placeholder:text-rose-200/60 custom-scrollbar"
+            />
+          </div>
+        </div>
+
       </div>
-      <p className="text-center text-rose-300 text-[10px] mt-4 font-medium uppercase tracking-widest">
-        Design your day
-      </p>
     </div>
   );
 };
 
-// --- UPGRADED IDEAS VIEW (Split Screen) ---
+// 2. IDEAS VIEW (Full Screen)
 const IdeasView = ({ ideas, setIdeas, categories, setCategories, projects, setProjects }) => {
   const [activeId, setActiveId] = useState(null);
   const [newTitle, setNewTitle] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Category Logic
   const [isAddingCat, setIsAddingCat] = useState(false);
   const [newCatName, setNewCatName] = useState("");
   const [selectedCat, setSelectedCat] = useState(categories[0] || "General");
 
   const activeIdea = ideas.find(i => i.id === activeId);
 
-  // --- ACTIONS ---
   const createIdea = () => {
     if (!newTitle.trim()) return;
     const newIdea = {
@@ -248,7 +249,7 @@ const IdeasView = ({ ideas, setIdeas, categories, setCategories, projects, setPr
     };
     setIdeas([newIdea, ...ideas]);
     setNewTitle("");
-    setActiveId(newIdea.id); // Auto-select the new idea
+    setActiveId(newIdea.id);
   };
 
   const updateIdea = (id, field, value) => {
@@ -270,7 +271,8 @@ const IdeasView = ({ ideas, setIdeas, categories, setCategories, projects, setPr
         priority: "Medium",
         deadline: "",
         progress: 0,
-        notes: activeIdea.body // Transfer notes too!
+        steps: [],
+        notes: activeIdea.body
       }]);
       setIdeas(ideas.filter(i => i.id !== activeIdea.id));
       setActiveId(null);
@@ -292,23 +294,18 @@ const IdeasView = ({ ideas, setIdeas, categories, setCategories, projects, setPr
     }
   };
 
-  // Filter Logic
   const filteredIdeas = ideas
     .filter(i => i.title.toLowerCase().includes(searchQuery.toLowerCase()) || i.category.toLowerCase().includes(searchQuery.toLowerCase()))
     .sort((a, b) => (b.isPinned === a.isPinned) ? 0 : b.isPinned ? 1 : -1);
 
   return (
-    <div className="w-full h-[600px] flex gap-6 animate-in slide-in-from-right-8 duration-500">
-
-      {/* --- LEFT COLUMN: SIDEBAR LIST --- */}
-      <div className="w-1/3 flex flex-col gap-4">
-
-        {/* Header & Search */}
+    <div className="w-full h-full flex gap-6 animate-in slide-in-from-right-8 duration-500 pb-20 md:pb-0">
+      {/* LEFT LIST */}
+      <div className="w-full md:w-80 flex flex-col gap-4">
         <div className="bg-white p-4 rounded-3xl border border-rose-100 shadow-sm space-y-3">
           <h2 className="text-lg font-bold text-rose-950 flex items-center gap-2">
             <Lightbulb className="text-amber-400" size={18} /> Idea Bank
           </h2>
-
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-300" />
             <input
@@ -320,7 +317,6 @@ const IdeasView = ({ ideas, setIdeas, categories, setCategories, projects, setPr
           </div>
         </div>
 
-        {/* Quick Add Box */}
         <div className="bg-white p-3 rounded-2xl border border-rose-100 shadow-sm">
           <div className="flex gap-2 mb-2">
             <input
@@ -331,7 +327,6 @@ const IdeasView = ({ ideas, setIdeas, categories, setCategories, projects, setPr
             />
             <button onClick={createIdea} className="bg-rose-500 text-white p-1 rounded-lg hover:bg-rose-600"><Plus size={14} /></button>
           </div>
-          {/* Mini Dropdown */}
           <div className="flex items-center gap-2">
             {!isAddingCat ? (
               <div className="relative group w-full">
@@ -341,7 +336,7 @@ const IdeasView = ({ ideas, setIdeas, categories, setCategories, projects, setPr
                   className="w-full appearance-none bg-rose-50 text-rose-500 text-[10px] font-bold px-2 py-1.5 rounded-lg outline-none cursor-pointer"
                 >
                   {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                  <option value="ADD_NEW">+ New...</option>
+                  <option value="ADD_NEW">+ New Tag...</option>
                 </select>
               </div>
             ) : (
@@ -354,8 +349,7 @@ const IdeasView = ({ ideas, setIdeas, categories, setCategories, projects, setPr
           </div>
         </div>
 
-        {/* The List */}
-        <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar min-h-0">
           {filteredIdeas.map(idea => (
             <div
               key={idea.id}
@@ -373,10 +367,8 @@ const IdeasView = ({ ideas, setIdeas, categories, setCategories, projects, setPr
               </div>
               <div className="text-sm font-bold text-rose-900 leading-tight mb-1">{idea.title}</div>
               <div className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">
-                {idea.body || "No additional details..."}
+                {idea.body || "No details..."}
               </div>
-
-              {/* Hover Actions */}
               <div className="absolute right-2 bottom-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button onClick={(e) => togglePin(e, idea.id)} className="p-1 hover:bg-amber-50 rounded text-slate-300 hover:text-amber-500"><Pin size={12} /></button>
                 <button onClick={(e) => deleteIdea(e, idea.id)} className="p-1 hover:bg-red-50 rounded text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>
@@ -386,13 +378,15 @@ const IdeasView = ({ ideas, setIdeas, categories, setCategories, projects, setPr
         </div>
       </div>
 
-      {/* --- RIGHT COLUMN: EDITOR CANVAS --- */}
-      <div className="w-2/3 bg-white rounded-[2rem] border border-rose-100 shadow-sm p-8 flex flex-col relative overflow-hidden">
+      {/* RIGHT EDITOR (Hidden on mobile if no active selection, handled via simple CSS/logic for now, usually needs dedicated mobile view but keeping simple for split view) */}
+      <div className={cn("hidden md:flex flex-1 bg-white rounded-[2rem] border border-rose-100 shadow-sm p-8 flex-col relative overflow-hidden", activeId && "flex fixed inset-0 z-50 md:static md:inset-auto")}>
+        {activeId && (
+          <button onClick={() => setActiveId(null)} className="md:hidden absolute top-4 left-4 p-2 bg-rose-50 text-rose-500 rounded-full"><ArrowLeft size={20} /></button>
+        )}
         {activeIdea ? (
           <>
-            {/* Toolbar */}
-            <div className="flex justify-between items-start mb-6 border-b border-rose-50 pb-4">
-              <div>
+            <div className="flex justify-between items-start mb-6 border-b border-rose-50 pb-4 mt-8 md:mt-0">
+              <div className="w-full">
                 <input
                   value={activeIdea.title}
                   onChange={e => updateIdea(activeIdea.id, 'title', e.target.value)}
@@ -401,62 +395,45 @@ const IdeasView = ({ ideas, setIdeas, categories, setCategories, projects, setPr
                 />
                 <div className="flex items-center gap-2 mt-2">
                   <span className="text-xs bg-rose-100 text-rose-600 px-2 py-0.5 rounded-md font-semibold">{activeIdea.category}</span>
-                  <span className="text-[10px] text-slate-300">Edited just now</span>
                 </div>
               </div>
-
               <button
                 onClick={promoteToProject}
-                className="flex items-center gap-2 bg-slate-900 text-white text-xs font-bold px-4 py-2 rounded-xl hover:bg-slate-800 transition-all active:scale-95"
+                className="hidden md:flex items-center gap-2 bg-slate-900 text-white text-xs font-bold px-4 py-2 rounded-xl hover:bg-slate-800 transition-all active:scale-95"
               >
-                <Rocket size={14} /> Promote to Project
+                <Rocket size={14} /> Promote
               </button>
             </div>
-
-            {/* Main Text Area */}
             <textarea
               value={activeIdea.body}
               onChange={e => updateIdea(activeIdea.id, 'body', e.target.value)}
-              placeholder="Start typing your master plan..."
+              placeholder="Expand on your idea..."
               className="flex-1 w-full resize-none bg-transparent outline-none text-base text-slate-600 leading-relaxed custom-scrollbar font-medium"
             />
-
-            {/* Footer / Connections */}
-            <div className="mt-4 pt-4 border-t border-rose-50 flex items-center gap-2 text-slate-300">
-              <LinkIcon size={14} />
-              <span className="text-xs">Linked to:</span>
-              {/* You can add your Connection Bubbles here if you want to keep that feature */}
-              <button className="text-[10px] border border-dashed border-slate-300 px-2 py-1 rounded-full hover:border-rose-400 hover:text-rose-400 transition-colors">
-                + Add Connection
-              </button>
-            </div>
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-rose-200 opacity-50">
             <Lightbulb size={64} className="mb-4 text-rose-100" />
-            <p className="text-lg font-bold">Select an idea to expand it</p>
+            <p className="text-lg font-bold">Select an idea</p>
           </div>
         )}
       </div>
-
     </div>
   );
 };
 
-// --- UPGRADED PROJECT WORKSPACE ---
+// 3. PROJECTS VIEW (Full Screen)
 const ProjectsView = ({ projects, setProjects }) => {
-  const [activeId, setActiveId] = useState(null); // ID of the project we are working on
+  const [activeId, setActiveId] = useState(null);
   const [newProjName, setNewProjName] = useState("");
-  const [newStep, setNewStep] = useState(""); // For adding sub-tasks
+  const [newStep, setNewStep] = useState("");
 
-  // Helper to update specific project fields
   const updateProject = (id, field, value) => {
     setProjects(projects.map(p => p.id === id ? { ...p, [field]: value } : p));
   };
 
   const activeProject = projects.find(p => p.id === activeId);
 
-  // --- LOGIC: SUB-TASKS ---
   const addStep = () => {
     if (!newStep.trim()) return;
     const currentSteps = activeProject.steps || [];
@@ -469,8 +446,6 @@ const ProjectsView = ({ projects, setProjects }) => {
     const currentSteps = activeProject.steps || [];
     const updatedSteps = currentSteps.map(s => s.id === stepId ? { ...s, done: !s.done } : s);
     updateProject(activeId, 'steps', updatedSteps);
-
-    // Auto-calculate Progress % based on tasks done!
     const doneCount = updatedSteps.filter(s => s.done).length;
     const progress = Math.round((doneCount / updatedSteps.length) * 100);
     updateProject(activeId, 'progress', progress);
@@ -481,7 +456,6 @@ const ProjectsView = ({ projects, setProjects }) => {
     updateProject(activeId, 'steps', currentSteps.filter(s => s.id !== stepId));
   };
 
-  // --- LOGIC: CREATE PROJECT ---
   const addProject = () => {
     if (!newProjName.trim()) return;
     setProjects([...projects, {
@@ -490,53 +464,48 @@ const ProjectsView = ({ projects, setProjects }) => {
       status: "Planning",
       deadline: "",
       progress: 0,
-      steps: [], // Start with empty steps
-      notes: ""  // Start with empty notes
+      steps: [],
+      notes: ""
     }]);
     setNewProjName("");
   };
 
   return (
-    <div className="w-full h-[600px] flex flex-col animate-in slide-in-from-right-8 duration-500">
-
-      {/* HEADER */}
+    <div className="w-full h-full flex flex-col animate-in slide-in-from-right-8 duration-500 pb-20 md:pb-0">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-rose-950 flex items-center gap-2">
           <Layout className="text-rose-400" size={24} />
-          {activeProject ? activeProject.title : "Project Dashboard"}
+          {activeProject ? activeProject.title : "Project Board"}
         </h2>
         {activeProject && (
           <button onClick={() => setActiveId(null)} className="text-xs bg-rose-50 text-rose-500 px-3 py-1 rounded-full border border-rose-100 hover:bg-rose-100">
-            ← Back to Board
+            ← Back
           </button>
         )}
       </div>
 
-      {/* VIEW 1: THE DASHBOARD (Table) */}
       {!activeProject ? (
         <div className="flex-1 bg-white/40 border border-white rounded-3xl p-6 shadow-sm overflow-hidden flex flex-col backdrop-blur-sm">
-          {/* Table Header */}
-          <div className="grid grid-cols-12 gap-4 text-[10px] uppercase font-bold text-slate-400 px-4 mb-3">
+          <div className="hidden md:grid grid-cols-12 gap-4 text-[10px] uppercase font-bold text-slate-400 px-4 mb-3">
             <div className="col-span-5">Project Name</div>
             <div className="col-span-2">Status</div>
             <div className="col-span-3">Deadline</div>
             <div className="col-span-2 text-right">Progress</div>
           </div>
 
-          {/* Table Rows */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2">
+          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 min-h-0">
             {projects.map(p => (
               <div
                 key={p.id}
-                onClick={() => setActiveId(p.id)} // Click row to open details
-                className="grid grid-cols-12 gap-4 items-center bg-white border border-rose-50 p-4 rounded-xl cursor-pointer hover:border-rose-300 hover:shadow-md transition-all group"
+                onClick={() => setActiveId(p.id)}
+                className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-4 items-center bg-white border border-rose-50 p-4 rounded-xl cursor-pointer hover:border-rose-300 hover:shadow-md transition-all group"
               >
                 <div className="col-span-5 font-bold text-rose-900 flex items-center gap-2">
                   <Rocket size={16} className="text-rose-300" />
                   {p.title}
                 </div>
-
-                <div className="col-span-2">
+                <div className="col-span-2 flex items-center justify-between md:justify-start">
+                  <span className="md:hidden text-xs text-slate-400">Status:</span>
                   <span className={cn("text-[10px] px-2 py-1 rounded-full font-bold uppercase",
                     p.status === 'Active' ? "bg-emerald-100 text-emerald-600" :
                       p.status === 'Done' ? "bg-slate-100 text-slate-500" : "bg-blue-100 text-blue-600"
@@ -544,11 +513,6 @@ const ProjectsView = ({ projects, setProjects }) => {
                     {p.status}
                   </span>
                 </div>
-
-                <div className="col-span-3 text-xs text-slate-500 font-mono">
-                  {p.deadline || "--/--/--"}
-                </div>
-
                 <div className="col-span-2 flex items-center gap-2">
                   <div className="flex-1 h-1.5 bg-rose-100 rounded-full overflow-hidden">
                     <div className="h-full bg-rose-500" style={{ width: `${p.progress}%` }} />
@@ -559,8 +523,7 @@ const ProjectsView = ({ projects, setProjects }) => {
             ))}
           </div>
 
-          {/* Quick Add Row */}
-          <div className="mt-4 flex items-center gap-2 bg-white p-2 rounded-xl border border-dashed border-rose-200">
+          <div className="mt-4 flex items-center gap-2 bg-white p-2 rounded-xl border border-dashed border-rose-200 shrink-0">
             <Plus size={18} className="text-rose-400 ml-2" />
             <input
               value={newProjName}
@@ -572,36 +535,26 @@ const ProjectsView = ({ projects, setProjects }) => {
           </div>
         </div>
       ) : (
-        /* VIEW 2: THE ACTIVE WORKSPACE (Deep Work Mode) */
-        <div className="flex-1 flex gap-6 overflow-hidden">
-
-          {/* Left Col: Steps & Tasks */}
+        <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden">
           <div className="flex-1 bg-white rounded-3xl border border-rose-100 p-6 flex flex-col shadow-sm">
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-bold text-rose-950 flex items-center gap-2">
                 <ListTodo size={18} className="text-rose-400" /> Action Plan
               </h3>
               <span className="text-xs text-rose-400 font-mono bg-rose-50 px-2 py-1 rounded-lg">
-                {(activeProject.steps || []).filter(s => s.done).length} / {(activeProject.steps || []).length} DONE
+                {(activeProject.steps || []).filter(s => s.done).length} / {(activeProject.steps || []).length}
               </span>
             </div>
-
-            {/* Step Input */}
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 mb-4 shrink-0">
               <input
                 value={newStep} onChange={e => setNewStep(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addStep()}
-                placeholder="Next step? (e.g. 'Create Repo')"
+                placeholder="Next step..."
                 className="flex-1 bg-rose-50/50 border border-rose-100 rounded-xl px-4 py-2 text-sm outline-none focus:border-rose-300"
               />
               <button onClick={addStep} className="bg-rose-500 text-white px-3 rounded-xl hover:bg-rose-600"><Plus size={18} /></button>
             </div>
-
-            {/* Steps List */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2">
-              {(activeProject.steps || []).length === 0 && (
-                <div className="text-center text-rose-200 text-xs italic mt-10">No steps yet. Break it down!</div>
-              )}
+            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2 min-h-0">
               {(activeProject.steps || []).map(step => (
                 <div key={step.id} className="group flex items-center gap-3 p-3 rounded-xl hover:bg-rose-50 transition-colors border border-transparent hover:border-rose-100">
                   <button
@@ -623,11 +576,7 @@ const ProjectsView = ({ projects, setProjects }) => {
               ))}
             </div>
           </div>
-
-          {/* Right Col: Context & Meta */}
-          <div className="w-1/3 flex flex-col gap-4">
-
-            {/* Status Card */}
+          <div className="w-full md:w-1/3 flex flex-col gap-4">
             <div className="bg-white p-5 rounded-3xl border border-rose-100 shadow-sm">
               <label className="text-[10px] font-bold text-rose-300 uppercase tracking-wider mb-2 block">Status</label>
               <select
@@ -640,19 +589,15 @@ const ProjectsView = ({ projects, setProjects }) => {
                 <option value="Done">Completed</option>
               </select>
             </div>
-
-            {/* Notes Card */}
-            <div className="flex-1 bg-white p-5 rounded-3xl border border-rose-100 shadow-sm flex flex-col">
-              <label className="text-[10px] font-bold text-rose-300 uppercase tracking-wider mb-2 block">Project Notes</label>
+            <div className="flex-1 bg-white p-5 rounded-3xl border border-rose-100 shadow-sm flex flex-col min-h-[150px]">
+              <label className="text-[10px] font-bold text-rose-300 uppercase tracking-wider mb-2 block">Notes</label>
               <textarea
                 value={activeProject.notes || ""}
                 onChange={(e) => updateProject(activeId, 'notes', e.target.value)}
-                placeholder="Links, ideas, or quick specs..."
+                placeholder="Details..."
                 className="flex-1 w-full resize-none bg-transparent outline-none text-sm text-slate-600 leading-relaxed custom-scrollbar"
               />
             </div>
-
-            {/* Danger Zone */}
             <button
               onClick={() => {
                 if (confirm("Delete this project?")) {
@@ -660,11 +605,10 @@ const ProjectsView = ({ projects, setProjects }) => {
                   setActiveId(null);
                 }
               }}
-              className="w-full py-3 rounded-2xl border border-red-100 text-red-400 hover:bg-red-50 text-xs font-bold transition-colors"
+              className="w-full py-3 rounded-2xl border border-red-100 text-red-400 hover:bg-red-50 text-xs font-bold transition-colors shrink-0"
             >
               Delete Project
             </button>
-
           </div>
         </div>
       )}
@@ -672,13 +616,11 @@ const ProjectsView = ({ projects, setProjects }) => {
   );
 };
 
-// --- COMPONENT: NOTES VIEW (Mobile Responsive) ---
+// --- COMPONENT: NOTES VIEW (With Connections & Linking) ---
 const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, setActiveNoteId, isMobile }) => {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [linkSearch, setLinkSearch] = useState("");
-
-  // Category Creation State
   const [isCreatingCat, setIsCreatingCat] = useState(false);
   const [newCatName, setNewCatName] = useState("");
 
@@ -707,8 +649,11 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
       category: activeNote.category,
       body: "",
       updatedAt: new Date().toLocaleDateString(),
-      links: [activeNote.id]
+      links: [activeNote.id] // Auto-link to parent
     };
+
+    // 1. Add son to notes list
+    // 2. Add son's ID to parent's link list
     setNotes(prev => {
       const withSon = [newSon, ...prev];
       return withSon.map(n => n.id === activeNote.id ? { ...n, links: [...(n.links || []), newSonId] } : n);
@@ -729,6 +674,8 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
   const toggleLink = (targetId) => {
     if (!activeNote) return;
     const isLinked = (activeNote.links || []).includes(targetId);
+
+    // Bi-directional linking (Updates both notes)
     setNotes(notes.map(n => {
       if (n.id === activeNote.id) {
         return { ...n, links: isLinked ? n.links.filter(l => l !== targetId) : [...(n.links || []), targetId] };
@@ -767,14 +714,13 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
     return matchesCategory && matchesSearch;
   });
 
-  // --- MOBILE LOGIC ---
   const showList = !isMobile || (isMobile && !activeNoteId);
   const showEditor = !isMobile || (isMobile && activeNoteId);
 
   return (
     <div className={clsx("w-full h-full flex gap-6 animate-in fade-in duration-500", !isMobile && "pb-24")}>
 
-      {/* 1. LIST SIDEBAR (Shows on Desktop OR Mobile-List-View) */}
+      {/* 1. LIST SIDEBAR */}
       {showList && (
         <div className={clsx("flex flex-col gap-4", isMobile ? "w-full" : "w-64")}>
           {!isMobile && (
@@ -783,7 +729,6 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
             </div>
           )}
 
-          {/* Category Filters */}
           <div className="bg-white/60 rounded-2xl border border-rose-100/50 p-3 space-y-1">
             <button onClick={() => setSelectedCategory("All")} className={clsx("w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-colors", selectedCategory === "All" ? "bg-white text-rose-600 shadow-sm" : "text-slate-400 hover:bg-rose-50")}>
               All Notes
@@ -795,7 +740,6 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
             ))}
           </div>
 
-          {/* Note List */}
           <div className="flex-1 bg-white/60 rounded-2xl border border-rose-100/50 p-3 flex flex-col min-h-0">
             <div className="flex justify-between items-center mb-3 px-1">
               <span className="text-[10px] font-bold text-rose-300 uppercase">{filteredNotes.length} Notes</span>
@@ -814,11 +758,11 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
         </div>
       )}
 
-      {/* 2. EDITOR (Shows on Desktop OR Mobile-Detail-View) */}
+      {/* 2. EDITOR + CONNECTIONS PANEL */}
       {showEditor && (
-        <div className={clsx("flex-1 bg-white rounded-[2rem] border border-rose-100 shadow-sm p-6 flex gap-8 overflow-hidden relative", isMobile && "fixed inset-0 z-[200] rounded-none p-4")}>
+        <div className={clsx("flex-1 bg-white rounded-[2rem] border border-rose-100 shadow-sm p-6 flex flex-col md:flex-row gap-8 overflow-hidden relative", isMobile && "fixed inset-0 z-[200] rounded-none p-4 overflow-y-auto")}>
 
-          {/* MOBILE BACK BUTTON */}
+          {/* Mobile Back Button */}
           {isMobile && (
             <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
               <button onClick={() => setActiveNoteId(null)} className="bg-rose-50 text-rose-500 p-2 rounded-full hover:bg-rose-100 border border-rose-100 shadow-sm">
@@ -829,7 +773,8 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
 
           {activeNote ? (
             <>
-              <div className={clsx("flex-1 flex flex-col h-full", isMobile && "mt-12")}>
+              {/* LEFT: WRITING AREA */}
+              <div className={clsx("flex-1 flex flex-col h-full", isMobile && "mt-12 min-h-[500px]")}>
                 {/* Header Metadata */}
                 <div className="flex items-center gap-3 text-[10px] text-slate-400 mb-6">
                   {isCreatingCat ? (
@@ -843,7 +788,6 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
                         className="bg-rose-50 border border-rose-200 text-rose-600 px-2 py-1 rounded text-[10px] font-bold outline-none w-32"
                       />
                       <button onClick={saveNewCategory} className="text-emerald-500 hover:bg-emerald-50 p-1 rounded"><Check size={12} /></button>
-                      <button onClick={() => setIsCreatingCat(false)} className="text-rose-400 hover:bg-rose-50 p-1 rounded"><X size={12} /></button>
                     </div>
                   ) : (
                     <div className="relative group">
@@ -853,8 +797,7 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
                         className="appearance-none bg-rose-50 hover:bg-rose-100 text-rose-500 px-3 py-1 rounded-md font-bold cursor-pointer outline-none transition-colors pr-6"
                       >
                         {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                        <option disabled>──────────</option>
-                        <option value="ADD_NEW_CAT_OPTION">+ Create New...</option>
+                        <option value="ADD_NEW_CAT_OPTION">+ New...</option>
                       </select>
                       <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-rose-400 pointer-events-none" />
                     </div>
@@ -876,36 +819,61 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
                 />
               </div>
 
-              {/* Right Panel: Connections (Hidden on Mobile to save space, or stacked) */}
-              {!isMobile && (
-                <div className="w-64 border-l border-rose-50 pl-6 flex flex-col">
-                  <div className="flex items-center gap-2 text-xs font-bold text-rose-950 mb-4">
-                    <LinkIcon size={14} className="text-rose-400" /> Connections
-                  </div>
-                  <button onClick={createSonNote} className="w-full mb-4 bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors">
-                    <Rocket size={12} /> Create Child Note
-                  </button>
-                  <div className="relative mb-2">
-                    <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-rose-300" />
-                    <input value={linkSearch} onChange={e => setLinkSearch(e.target.value)} placeholder="Link to..." className="w-full pl-7 pr-2 py-1.5 bg-slate-50 border border-transparent focus:border-rose-200 rounded-lg text-[10px] outline-none transition-all" />
-                  </div>
-                  <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1">
-                    {notes
-                      .filter(n => n.id !== activeNote.id)
-                      .filter(n => n.title.toLowerCase().includes(linkSearch.toLowerCase()))
-                      .map(other => {
-                        const isLinked = (activeNote.links || []).includes(other.id);
-                        return (
-                          <button key={other.id} onClick={() => toggleLink(other.id)} className={clsx("w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-between", isLinked ? "bg-rose-100 text-rose-700 border border-rose-200" : "bg-slate-50 text-slate-500 border border-transparent hover:bg-rose-50")}>
-                            <span className="truncate">{other.title || "Untitled"}</span>
-                            {isLinked && <Check size={12} />}
-                          </button>
-                        );
-                      })
-                    }
-                  </div>
+              {/* RIGHT: CONNECTIONS PANEL */}
+              <div className={clsx("border-l border-rose-50 pl-6 flex flex-col", isMobile ? "w-full border-l-0 border-t pl-0 pt-6 mt-6 h-80 shrink-0" : "w-64 h-full")}>
+                <div className="flex items-center gap-2 text-xs font-bold text-rose-950 mb-4">
+                  <LinkIcon size={14} className="text-rose-400" /> Connections
                 </div>
-              )}
+
+                {/* Create Child Button */}
+                <button onClick={createSonNote} className="w-full mb-4 bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors border border-rose-100">
+                  <Rocket size={14} /> Create Child Note
+                </button>
+
+                {/* Link Search */}
+                <div className="relative mb-3">
+                  <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-300" />
+                  <input
+                    value={linkSearch}
+                    onChange={e => setLinkSearch(e.target.value)}
+                    placeholder="Link to other note..."
+                    className="w-full pl-8 pr-2 py-2 bg-slate-50 border border-transparent focus:border-rose-200 rounded-xl text-[10px] outline-none transition-all"
+                  />
+                </div>
+
+                {/* Navigator / Link List */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1">
+                  {notes
+                    .filter(n => n.id !== activeNote.id) // Don't link to self
+                    .filter(n => n.title.toLowerCase().includes(linkSearch.toLowerCase()))
+                    .map(other => {
+                      const isLinked = (activeNote.links || []).includes(other.id);
+                      return (
+                        <button
+                          key={other.id}
+                          onClick={() => toggleLink(other.id)}
+                          className={clsx(
+                            "w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-between group",
+                            isLinked ? "bg-rose-100 text-rose-700 border border-rose-200" : "bg-white text-slate-500 border border-transparent hover:bg-rose-50"
+                          )}
+                        >
+                          <span className="truncate flex-1">{other.title || "Untitled"}</span>
+                          {isLinked ? (
+                            <Check size={12} className="text-rose-500" />
+                          ) : (
+                            <Plus size={12} className="opacity-0 group-hover:opacity-100 text-rose-300" />
+                          )}
+                        </button>
+                      );
+                    })
+                  }
+                  {notes.length <= 1 && (
+                    <div className="text-center text-[10px] text-slate-300 italic mt-4">
+                      No other notes to link.
+                    </div>
+                  )}
+                </div>
+              </div>
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-rose-200 opacity-50">
@@ -915,65 +883,55 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
           )}
         </div>
       )}
-
     </div>
   );
 };
 
-
-// --- COMPONENT: GRAPH VIEW (Fixed Visual Alignment & Safe Mode) ---
-const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setView }) => {
-  // 1. Direct DOM Access
+// --- COMPONENT: GRAPH VIEW (Fixed Physics) ---
+const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setView, isMobile }) => {
   const nodeRefs = useRef({});
   const linkRefs = useRef({});
   const containerRef = useRef(null);
-
-  // Physics State
   const simulationNodes = useRef([]);
   const requestRef = useRef();
 
-  // Viewport State
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [selectedNode, setSelectedNode] = useState(null);
   const dragRef = useRef({ active: false, type: null, startX: 0, startY: 0, nodeId: null });
 
-  // 2. Data Sync
+  // 1. Initialize Nodes
   useEffect(() => {
     const safeNotes = Array.isArray(notes) ? notes : [];
-
     simulationNodes.current = safeNotes.map(note => {
       const existing = simulationNodes.current.find(n => n.id === note.id);
-      return existing
-        ? { ...existing, ...note }
-        : {
-          ...note,
-          x: Math.random() * 200 - 100,
-          y: Math.random() * 200 - 100,
-          vx: 0, vy: 0
-        };
+      // Keep existing physics state (x, y, vx, vy) to prevent "resetting" jumps
+      return existing ? { ...existing, ...note } : {
+        ...note,
+        x: Math.random() * 200 - 100,
+        y: Math.random() * 200 - 100,
+        vx: 0, vy: 0
+      };
     });
   }, [notes]);
 
-  // 3. Physics Engine
+  // 2. The Physics Engine
   useEffect(() => {
     const tick = () => {
       const nodes = simulationNodes.current;
       if (!nodes) return;
 
-      // --- SETTINGS ---
-      const REPULSION = 6000;
-      const SPRING_LEN = 120;
-      const SPRING_K = 0.005;
+      // --- RESTORED PHYSICS CONSTANTS ---
+      const REPULSION = isMobile ? 4000 : 6000;
+      const SPRING_LEN = 100;      // <--- Was missing in last version
+      const SPRING_K = 0.005;      // <--- Was missing in last version
       const CENTER_GRAVITY = 0.0005;
       const DAMPING = 0.88;
 
-      // PHASE 1: MATH
       for (let i = 0; i < nodes.length; i++) {
         const node = nodes[i];
-
         if (dragRef.current.active && dragRef.current.type === 'NODE' && dragRef.current.nodeId === node.id) continue;
 
-        // Center Gravity
+        // Center Gravity (Pull to middle)
         node.vx -= node.x * CENTER_GRAVITY;
         node.vy -= node.y * CENTER_GRAVITY;
 
@@ -984,21 +942,21 @@ const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setVie
           const dy = node.y - other.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
-          // Repulsion
+          // Repulsion (Push apart)
           if (dist < 500) {
             const force = REPULSION / (dist * dist);
             node.vx += (dx / dist) * force;
             node.vy += (dy / dist) * force;
           }
 
-          // Attraction
+          // Group Attraction (Pull similar categories slightly)
           if (node.category === other.category) {
-            node.vx -= dx * 0.0005;
-            node.vy -= dy * 0.0005;
+            node.vx -= dx * 0.0002;
+            node.vy -= dy * 0.0002;
           }
         }
 
-        // Links
+        // Links (Springs)
         if (Array.isArray(node.links)) {
           node.links.forEach(linkId => {
             const target = nodes.find(n => n.id === linkId);
@@ -1016,9 +974,8 @@ const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setVie
         }
       }
 
-      // PHASE 2: UPDATE DOM
+      // Update Positions & DOM
       nodes.forEach(node => {
-        // Apply Velocity
         if (!dragRef.current.active || dragRef.current.nodeId !== node.id) {
           node.x += node.vx;
           node.y += node.vy;
@@ -1026,20 +983,17 @@ const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setVie
           node.vy *= DAMPING;
         }
 
-        // Move Node Element
         const nodeEl = nodeRefs.current[node.id];
         if (nodeEl) {
           const size = Math.min(80, 24 + ((node.links?.length || 0) * 8));
-          // transform-origin is top-left, so we subtract size/2 to center it
           nodeEl.style.transform = `translate3d(${node.x - size / 2}px, ${node.y - size / 2}px, 0)`;
         }
 
-        // Move Lines
+        // Update Lines
         if (Array.isArray(node.links)) {
           node.links.forEach(linkId => {
             const lineEl = linkRefs.current[`${node.id}-${linkId}`];
             const target = nodes.find(n => n.id === linkId);
-
             if (lineEl && target) {
               lineEl.setAttribute('x1', node.x);
               lineEl.setAttribute('y1', node.y);
@@ -1049,35 +1003,28 @@ const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setVie
           });
         }
       });
-
       requestRef.current = requestAnimationFrame(tick);
     };
-
     requestRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(requestRef.current);
-  }, []);
+  }, [isMobile]);
 
-  // --- HANDLERS ---
-  const handleWheel = (e) => {
-    const zoomSensitivity = 0.001;
-    const newScale = Math.max(0.1, Math.min(3, transform.scale - e.deltaY * zoomSensitivity));
-    setTransform(prev => ({ ...prev, scale: newScale }));
-  };
-
+  // 3. Handlers
   const handleMouseDown = (e, node = null) => {
-    e.stopPropagation();
     if (node) {
+      e.stopPropagation();
       dragRef.current = { active: true, type: 'NODE', startX: e.clientX, startY: e.clientY, nodeId: node.id };
       setSelectedNode(node);
     } else {
+      // Allow dragging canvas
       if (e.target.tagName !== 'DIV' && e.target.tagName !== 'svg') return;
+      setSelectedNode(null);
       dragRef.current = { active: true, type: 'CANVAS', startX: e.clientX - transform.x, startY: e.clientY - transform.y, nodeId: null };
     }
   };
 
   const handleMouseMove = (e) => {
     if (!dragRef.current.active) return;
-
     if (dragRef.current.type === 'CANVAS') {
       setTransform(prev => ({ ...prev, x: e.clientX - dragRef.current.startX, y: e.clientY - dragRef.current.startY }));
     } else if (dragRef.current.type === 'NODE') {
@@ -1086,8 +1033,6 @@ const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setVie
         const rect = containerRef.current.getBoundingClientRect();
         const centerX = rect.width / 2;
         const centerY = rect.height / 2;
-
-        // Direct update
         node.x = (e.clientX - rect.left - centerX - transform.x) / transform.scale;
         node.y = (e.clientY - rect.top - centerY - transform.y) / transform.scale;
         node.vx = 0; node.vy = 0;
@@ -1095,227 +1040,86 @@ const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setVie
     }
   };
 
-  const handleMouseUp = () => {
-    dragRef.current.active = false;
-  };
+  const handleMouseUp = () => { dragRef.current.active = false; };
 
-  // Safety return
   if (!notes) return null;
 
   return (
-    <div className="w-full h-full flex gap-4 animate-in fade-in duration-700">
+    <div className={clsx("w-full h-full relative overflow-hidden animate-in fade-in duration-700", !isMobile && "pb-4")}>
 
-      {/* CANVAS */}
-      <div className="flex-1 bg-slate-900 rounded-[2rem] overflow-hidden relative border border-slate-800 shadow-2xl select-none flex items-center justify-center">
+      {/* Canvas Layer */}
+      <div className={clsx("bg-slate-900 overflow-hidden relative border border-slate-800 shadow-2xl select-none flex items-center justify-center", isMobile ? "absolute inset-0 z-0" : "w-full h-full rounded-[2rem]")}>
 
-        {/* HUD */}
-        <div className="absolute bottom-6 right-6 z-50 flex flex-col gap-2 bg-slate-800 p-2 rounded-xl border border-slate-700 shadow-xl">
-          <button onClick={() => setTransform(t => ({ ...t, scale: t.scale + 0.2 }))} className="p-2 text-white hover:bg-slate-700 rounded-lg"><Plus size={16} /></button>
-          <button onClick={() => setTransform(t => ({ ...t, scale: Math.max(0.1, t.scale - 0.2) }))} className="p-2 text-white hover:bg-slate-700 rounded-lg flex items-center justify-center h-8 w-8 font-bold">-</button>
-          <button onClick={() => setTransform({ x: 0, y: 0, scale: 1 })} className="p-2 text-rose-400 hover:bg-slate-700 rounded-lg"><RotateCcw size={16} /></button>
+        {/* HUD Controls */}
+        <div className="absolute top-6 right-6 z-50 flex flex-col gap-2 bg-slate-800/80 backdrop-blur p-2 rounded-xl border border-slate-700 shadow-xl">
+          <button onClick={() => setTransform(t => ({ ...t, scale: t.scale + 0.2 }))} className="p-2 text-white hover:bg-slate-700 rounded-lg"><Plus size={20} /></button>
+          <button onClick={() => setTransform(t => ({ ...t, scale: Math.max(0.1, t.scale - 0.2) }))} className="p-2 text-white hover:bg-slate-700 rounded-lg flex items-center justify-center h-9 w-9 font-bold text-lg">-</button>
+          <button onClick={() => setTransform({ x: 0, y: 0, scale: 1 })} className="p-2 text-rose-400 hover:bg-slate-700 rounded-lg"><RotateCcw size={20} /></button>
         </div>
 
-        {/* INTERACTIVE AREA */}
+        {/* Interactive Area */}
         <div
           ref={containerRef}
-          onWheel={handleWheel}
           onMouseDown={(e) => handleMouseDown(e, null)}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
-          className="w-full h-full cursor-grab active:cursor-grabbing flex items-center justify-center"
+          // Add touch support for mobile
+          onTouchStart={(e) => { const t = e.touches[0]; handleMouseDown({ ...e, clientX: t.clientX, clientY: t.clientY, target: e.target }, null); }}
+          onTouchMove={(e) => { const t = e.touches[0]; handleMouseMove({ ...e, clientX: t.clientX, clientY: t.clientY }); }}
+          onTouchEnd={handleMouseUp}
+          className="w-full h-full cursor-grab active:cursor-grabbing flex items-center justify-center touch-none"
         >
-          <div style={{
-            transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
-            transformOrigin: 'center center'
-          }} className="relative w-0 h-0 flex items-center justify-center">
+          <div style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`, transformOrigin: 'center center' }} className="relative w-0 h-0 flex items-center justify-center">
 
-            {/* LINES */}
+            {/* Lines */}
             <svg className="overflow-visible absolute top-0 left-0 pointer-events-none">
-              {notes.map(node => (
-                (Array.isArray(node.links) ? node.links : []).map(linkId => (
-                  <line
-                    key={`${node.id}-${linkId}`}
-                    ref={el => linkRefs.current[`${node.id}-${linkId}`] = el}
-                    stroke="white"
-                    strokeWidth="1.5"
-                    strokeOpacity="0.4"
-                    strokeLinecap="round"
-                  />
-                ))
-              ))}
+              {notes.map(node => ((Array.isArray(node.links) ? node.links : []).map(linkId => (<line key={`${node.id}-${linkId}`} ref={el => linkRefs.current[`${node.id}-${linkId}`] = el} stroke="white" strokeWidth="1.5" strokeOpacity="0.4" strokeLinecap="round" />))))}
             </svg>
 
-            {/* NODES */}
+            {/* Nodes */}
             {notes.map(node => {
               const linkCount = Array.isArray(node.links) ? node.links.length : 0;
-              const size = Math.min(80, 24 + (linkCount * 8));
-
+              const size = Math.min(80, 32 + (linkCount * 8));
               return (
                 <div
                   key={node.id}
                   ref={el => nodeRefs.current[node.id] = el}
                   onMouseDown={(e) => handleMouseDown(e, node)}
-                  onDoubleClick={(e) => { e.stopPropagation(); setActiveNoteId(node.id); setView('notes'); }}
+                  onTouchStart={(e) => { e.stopPropagation(); const t = e.touches[0]; handleMouseDown({ ...e, clientX: t.clientX, clientY: t.clientY }, node); }}
                   style={{ width: size, height: size }}
-                  className={cn(
-                    // FIX: Added 'left-0 top-0' to prevent flexbox double-centering
-                    "absolute left-0 top-0 rounded-full flex items-center justify-center border shadow-[0_0_20px_rgba(0,0,0,0.3)] cursor-pointer hover:scale-110 transition-colors duration-200",
-                    selectedNode?.id === node.id
-                      ? "bg-rose-500 border-rose-300 z-50 ring-4 ring-rose-500/20"
-                      : "bg-slate-800 border-slate-600 hover:bg-slate-700"
-                  )}
+                  className={clsx("absolute left-0 top-0 rounded-full flex items-center justify-center border shadow-[0_0_20px_rgba(0,0,0,0.3)] cursor-pointer transition-colors duration-200", selectedNode?.id === node.id ? "bg-rose-500 border-rose-300 z-50 ring-4 ring-rose-500/20" : "bg-slate-800 border-slate-600")}
                 >
-                  <div className="absolute -top-10 bg-slate-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none border border-slate-700 shadow-xl z-50">
-                    {node.title}
-                  </div>
+                  <div className={clsx("absolute -top-8 bg-slate-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg whitespace-nowrap border border-slate-700 shadow-xl z-50 pointer-events-none transition-opacity", (selectedNode?.id === node.id || !isMobile) ? "opacity-100" : "opacity-0")}>{node.title}</div>
                 </div>
               )
             })}
-
           </div>
         </div>
       </div>
 
-      {/* INSPECTOR */}
-      <div className="w-80 bg-white rounded-[2rem] border border-rose-100 shadow-sm p-6 flex flex-col animate-in slide-in-from-right-4 duration-500">
-        {selectedNode ? (
-          <>
-            <div className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">{selectedNode.category}</div>
-            <h2 className="text-xl font-bold text-rose-950 my-2 leading-tight">{selectedNode.title}</h2>
-            <div className="text-xs text-slate-500 leading-relaxed mb-6 line-clamp-6 bg-slate-50 p-3 rounded-xl border border-rose-50/50">
-              {selectedNode.body || <span className="italic opacity-50">No additional details...</span>}
+      {/* Inspector Panel */}
+      <div className={clsx("bg-white shadow-2xl flex flex-col transition-all duration-300 ease-out z-[100]", isMobile ? "fixed bottom-0 left-0 right-0 rounded-t-[2rem] border-t border-rose-100" : "absolute right-4 top-4 bottom-4 w-80 rounded-[2rem] border border-rose-100 p-6 animate-in slide-in-from-right-4", (isMobile && !selectedNode) ? "translate-y-[120%]" : "translate-y-0")} style={isMobile ? { maxHeight: '50vh' } : {}}>
+        {selectedNode && (
+          <div className="p-6 h-full flex flex-col">
+            {isMobile && <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 shrink-0" />}
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">{selectedNode.category}</div>
+                <h2 className="text-xl font-bold text-rose-950 my-1 leading-tight line-clamp-2">{selectedNode.title}</h2>
+              </div>
+              {isMobile && <button onClick={() => setSelectedNode(null)} className="p-1 bg-slate-100 rounded-full text-slate-400"><X size={16} /></button>}
             </div>
-            <button
-              onClick={() => { setActiveNoteId(selectedNode.id); setView('notes'); }}
-              className="mt-4 w-full py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center justify-center gap-2"
-            >
-              Open Full Note <ArrowRightCircle size={14} />
-            </button>
-          </>
-        ) : (
-          <div className="h-full flex flex-col items-center justify-center text-rose-200 opacity-60">
-            <Share2 size={48} className="mb-4" />
-            <div className="text-xs font-bold uppercase tracking-widest text-center">Select a node<br />to preview</div>
+            <div className="text-xs text-slate-500 leading-relaxed my-4 line-clamp-4 bg-slate-50 p-3 rounded-xl border border-rose-50/50">{selectedNode.body || <span className="italic opacity-50">No details...</span>}</div>
+            <button onClick={() => { setActiveNoteId(selectedNode.id); setView('notes'); }} className="mt-auto w-full py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center justify-center gap-2">Open Full Note <ArrowRightCircle size={14} /></button>
           </div>
         )}
       </div>
-
     </div>
   );
 };
 
-// --- MAIN NAV COMPONENT ---
-const NavBar = ({ currentView, setView }) => {
-  const navItems = [
-    { id: 'ideas', icon: Lightbulb, label: 'Ideas' },
-    { id: 'projects', icon: Rocket, label: 'Projects' },
-    { id: 'timer', icon: TimerIcon, label: 'Focus' },
-    { id: 'todo', icon: ListTodo, label: 'Tasks' },
-    { id: 'plan', icon: Calendar, label: 'Plan' },
-    { id: 'notes', icon: Book, label: 'Notes' },
-    { id: 'graph', icon: Share2, label: 'Graph' }, // <--- Add this line
-  ];
-  // ... rest of NavBar code
-
-  return (
-    <div className="flex items-center gap-2 bg-white/90 backdrop-blur-xl border border-rose-100 p-2 rounded-full shadow-2xl shadow-rose-900/5 z-50">
-      {navItems.map((item) => (
-        <button
-          key={item.id}
-          onClick={() => setView(item.id)}
-          className={cn(
-            "relative px-6 py-3 rounded-full flex items-center justify-center transition-all duration-300 ease-out",
-            currentView === item.id
-              ? "bg-rose-100 text-rose-600"
-              : "text-slate-400 hover:text-rose-400 hover:bg-rose-50"
-          )}
-        >
-          <item.icon size={20} strokeWidth={currentView === item.id ? 2.5 : 2} />
-          {currentView === item.id && (
-            <span className="ml-2 text-xs font-bold animate-in fade-in zoom-in duration-300">
-              {item.label}
-            </span>
-          )}
-        </button>
-      ))}
-    </div>
-  );
-};
-
-// --- UPDATED HOOK: USER STORAGE ---
-const useStickyState = (defaultValue, key, userId) => {
-  // We prefix the key with the userId (e.g., "john-pomodoro-tasks")
-  const specificKey = `${userId}-${key}`;
-
-  const [value, setValue] = useState(() => {
-    const stickyValue = window.localStorage.getItem(specificKey);
-    return stickyValue !== null ? JSON.parse(stickyValue) : defaultValue;
-  });
-
-  useEffect(() => {
-    window.localStorage.setItem(specificKey, JSON.stringify(value));
-  }, [specificKey, value]);
-
-  return [value, setValue];
-};
-
-const LoginView = ({ onLogin }) => {
-  const [name, setName] = useState("");
-
-  return (
-    <div className="h-screen bg-[#fff5f7] flex flex-col items-center justify-center relative overflow-hidden font-sans selection:bg-rose-200 selection:text-rose-900">
-
-      {/* 1. Background Ambience (Matches Main App) */}
-      <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-rose-200/40 rounded-full blur-[100px] pointer-events-none animate-pulse" />
-      <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-orange-100/50 rounded-full blur-[100px] pointer-events-none" />
-
-      {/* 2. Login Card */}
-      <div className="relative z-10 flex flex-col items-center animate-in fade-in zoom-in duration-700">
-
-        {/* Icon */}
-        <div className="mb-6 p-4 bg-white rounded-full shadow-xl shadow-rose-100/50 text-rose-400">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
-        </div>
-
-        <h1 className="text-4xl font-bold mb-2 text-rose-950 tracking-tight">Welcome Back</h1>
-        <p className="text-rose-400 mb-10 text-sm font-medium uppercase tracking-widest opacity-80">Who is focusing today?</p>
-
-        <div className="group relative">
-          <input
-            autoFocus
-            value={name}
-            onChange={e => setName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && name.trim() && onLogin(name)}
-            placeholder="Your Name..."
-            className="w-80 bg-white border-2 border-rose-100 text-rose-900 text-center text-xl font-bold placeholder:text-rose-200 rounded-3xl py-5 px-6 outline-none focus:border-rose-300 focus:shadow-xl focus:shadow-rose-200/40 transition-all duration-300"
-          />
-        </div>
-
-        <button
-          onClick={() => name.trim() && onLogin(name)}
-          disabled={!name.trim()}
-          className="mt-8 bg-rose-500 hover:bg-rose-600 disabled:bg-rose-200 disabled:cursor-not-allowed text-white font-bold py-4 px-12 rounded-2xl shadow-xl shadow-rose-300/40 transition-all active:scale-95 flex items-center gap-2"
-        >
-          Enter Workspace
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 12h14M12 5l7 7-7 7" />
-          </svg>
-        </button>
-      </div>
-
-      <div className="absolute bottom-8 text-rose-300/50 text-xs font-bold uppercase tracking-widest">
-        Productivity OS • v2.0
-      </div>
-
-    </div>
-  );
-};
-
-// --- MOBILE HELPER: Detect Screen Size ---
+// --- MOBILE HELPER & NAV ---
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   useEffect(() => {
@@ -1326,31 +1130,53 @@ const useIsMobile = () => {
   return isMobile;
 };
 
-// --- COMPONENT: MOBILE BOTTOM NAV ---
 const MobileNav = ({ view, setView }) => {
   const navItems = [
+    { id: 'projects', icon: Rocket, label: 'Projects' },
+    { id: 'ideas', icon: Lightbulb, label: 'Ideas' },
     { id: 'timer', icon: TimerIcon, label: 'Focus' },
     { id: 'notes', icon: Book, label: 'Notes' },
     { id: 'graph', icon: Share2, label: 'Graph' },
   ];
-
   return (
     <div className="fixed bottom-0 left-0 w-full bg-white border-t border-rose-100 p-2 pb-6 z-[100] flex justify-around shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
       {navItems.map(item => (
-        <button
-          key={item.id}
-          onClick={() => setView(item.id)}
-          className={clsx(
-            "flex flex-col items-center gap-1 p-2 rounded-xl transition-all w-20",
-            view === item.id
-              ? "text-rose-500 bg-rose-50"
-              : "text-slate-400 hover:text-slate-600"
-          )}
-        >
+        <button key={item.id} onClick={() => setView(item.id)} className={clsx("flex flex-col items-center gap-1 p-2 rounded-xl transition-all w-16", view === item.id ? "text-rose-500 bg-rose-50" : "text-slate-400 hover:text-slate-600")}>
           <item.icon size={20} strokeWidth={view === item.id ? 3 : 2} />
-          <span className="text-[10px] font-bold uppercase tracking-wide">{item.label}</span>
+          <span className="text-[9px] font-bold uppercase tracking-wide">{item.label}</span>
         </button>
       ))}
+    </div>
+  );
+};
+
+// --- DATA HOOK ---
+const useStickyState = (defaultValue, key, userId) => {
+  const specificKey = `${userId}-${key}`;
+  const [value, setValue] = useState(() => {
+    const stickyValue = window.localStorage.getItem(specificKey);
+    return stickyValue !== null ? JSON.parse(stickyValue) : defaultValue;
+  });
+  useEffect(() => { window.localStorage.setItem(specificKey, JSON.stringify(value)); }, [specificKey, value]);
+  return [value, setValue];
+};
+
+const LoginView = ({ onLogin }) => {
+  const [name, setName] = useState("");
+  return (
+    <div className="h-screen bg-[#fff5f7] flex flex-col items-center justify-center relative overflow-hidden font-sans selection:bg-rose-200 selection:text-rose-900">
+      <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-rose-200/40 rounded-full blur-[100px] pointer-events-none animate-pulse" />
+      <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-orange-100/50 rounded-full blur-[100px] pointer-events-none" />
+      <div className="relative z-10 flex flex-col items-center animate-in fade-in zoom-in duration-700">
+        <div className="mb-6 p-4 bg-white rounded-full shadow-xl shadow-rose-100/50 text-rose-400">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+        </div>
+        <h1 className="text-4xl font-bold mb-2 text-rose-950 tracking-tight">Welcome Back</h1>
+        <p className="text-rose-400 mb-10 text-sm font-medium uppercase tracking-widest opacity-80">Who is focusing today?</p>
+        <input autoFocus value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && name.trim() && onLogin(name)} placeholder="Your Name..." className="w-80 bg-white border-2 border-rose-100 text-rose-900 text-center text-xl font-bold placeholder:text-rose-200 rounded-3xl py-5 px-6 outline-none focus:border-rose-300 focus:shadow-xl focus:shadow-rose-200/40 transition-all duration-300" />
+        <button onClick={() => name.trim() && onLogin(name)} disabled={!name.trim()} className="mt-8 bg-rose-500 hover:bg-rose-600 disabled:bg-rose-200 disabled:cursor-not-allowed text-white font-bold py-4 px-12 rounded-2xl shadow-xl shadow-rose-300/40 transition-all active:scale-95 flex items-center gap-2">Enter Workspace <ArrowRightCircle size={16} /></button>
+      </div>
+      <div className="absolute bottom-8 text-rose-300/50 text-xs font-bold uppercase tracking-widest">Productivity OS • v2.0</div>
     </div>
   );
 };
@@ -1358,128 +1184,73 @@ const MobileNav = ({ view, setView }) => {
 // --- APP LAYOUT ---
 function Dashboard({ currentUser, onLogout }) {
   const [view, setView] = useState('timer');
-  const isMobile = useIsMobile(); // <--- Detects Mobile
+  const isMobile = useIsMobile();
 
-  // STATE MANAGEMENT
   const timerState = usePomodoro();
   const [categories, setCategories] = useStickyState(["General", "Personal"], "pomodoro-categories", currentUser);
   const [tasks, setTasks] = useStickyState([], "pomodoro-tasks", currentUser);
   const [note, setNote] = useStickyState("", "pomodoro-daily-note", currentUser);
   const [notes, setNotes] = useStickyState([], "pomodoro-notes-library", currentUser);
+  const [projects, setProjects] = useStickyState([], "pomodoro-projects", currentUser);
+  const [ideas, setIdeas] = useStickyState([], "pomodoro-ideas", currentUser);
   const [activeNoteId, setActiveNoteId] = useState(null);
 
   return (
     <div className="flex h-screen w-full bg-[#fff5f7] p-4 md:p-8 gap-8 relative overflow-hidden font-sans selection:bg-rose-200 selection:text-rose-900">
-
-      {/* Background Ambience */}
       <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-rose-200/40 rounded-full blur-[100px] pointer-events-none animate-pulse" />
       <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-orange-100/50 rounded-full blur-[100px] pointer-events-none" />
 
-      {/* 1. DESKTOP SIDEBAR (Hidden on Mobile) */}
       {!isMobile && (
         <aside className="w-24 bg-white/80 backdrop-blur-xl rounded-[2rem] border border-white/50 shadow-sm flex flex-col items-center py-8 z-50">
-          <div className="mb-8 p-3 bg-rose-100 text-rose-500 rounded-2xl">
-            <TimerIcon size={24} />
-          </div>
-
+          <div className="mb-8 p-3 bg-rose-100 text-rose-500 rounded-2xl"><TimerIcon size={24} /></div>
           <nav className="flex-1 flex flex-col gap-6 w-full px-4">
-            <button onClick={() => setView('timer')} className={clsx("p-3 rounded-xl transition-all", view === 'timer' ? "bg-rose-50 text-rose-500 shadow-sm" : "text-slate-400 hover:bg-white hover:text-rose-400")}>
-              <TimerIcon size={20} />
-            </button>
-            <button onClick={() => setView('notes')} className={clsx("p-3 rounded-xl transition-all", view === 'notes' ? "bg-rose-50 text-rose-500 shadow-sm" : "text-slate-400 hover:bg-white hover:text-rose-400")}>
-              <Book size={20} />
-            </button>
-            <button onClick={() => setView('graph')} className={clsx("p-3 rounded-xl transition-all", view === 'graph' ? "bg-rose-50 text-rose-500 shadow-sm" : "text-slate-400 hover:bg-white hover:text-rose-400")}>
-              <Share2 size={20} />
-            </button>
+            {[
+              { id: 'timer', icon: TimerIcon },
+              { id: 'projects', icon: Rocket },
+              { id: 'ideas', icon: Lightbulb },
+              { id: 'notes', icon: Book },
+              { id: 'graph', icon: Share2 }
+            ].map(item => (
+              <button key={item.id} onClick={() => setView(item.id)} className={clsx("p-3 rounded-xl transition-all", view === item.id ? "bg-rose-50 text-rose-500 shadow-sm" : "text-slate-400 hover:bg-white hover:text-rose-400")}>
+                <item.icon size={20} />
+              </button>
+            ))}
           </nav>
-
-          <button onClick={onLogout} className="mt-auto p-3 text-slate-300 hover:text-rose-400 hover:bg-rose-50 rounded-xl transition-all">
-            <Trash2 size={20} />
-          </button>
+          <button onClick={onLogout} className="mt-auto p-3 text-slate-300 hover:text-rose-400 hover:bg-rose-50 rounded-xl transition-all"><Trash2 size={20} /></button>
         </aside>
       )}
 
-      {/* 2. MAIN CONTENT AREA */}
       <main className={clsx("flex-1 relative z-10 flex flex-col min-h-0", isMobile && "pb-20")}>
-
-        {/* Mobile Header */}
         {isMobile && (
           <div className="flex justify-between items-center mb-4 px-2">
             <h1 className="text-xl font-bold text-rose-950 capitalize flex items-center gap-2">
               {view === 'timer' && <><TimerIcon size={20} /> Focus</>}
+              {view === 'projects' && <><Rocket size={20} /> Projects</>}
+              {view === 'ideas' && <><Lightbulb size={20} /> Ideas</>}
               {view === 'notes' && <><Book size={20} /> Notes</>}
               {view === 'graph' && <><Share2 size={20} /> Graph</>}
             </h1>
-            <button onClick={onLogout} className="text-[10px] font-bold text-rose-400 bg-white px-3 py-1.5 rounded-full border border-rose-100 shadow-sm">
-              Log Out
-            </button>
+            <button onClick={onLogout} className="text-[10px] font-bold text-rose-400 bg-white px-3 py-1.5 rounded-full border border-rose-100 shadow-sm">Log Out</button>
           </div>
         )}
 
-        {/* VIEWS */}
-        {view === 'timer' && (
-          <div className="flex flex-col gap-6 max-w-4xl mx-auto w-full pb-24">
-
-            {/* 1. FIX: Changed 'state' to 'timerState' so it doesn't crash */}
-            <TimerView timerState={timerState} />
-
-            {/* 2. FIX: Added these back so you can actually see your Tasks and Plan */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <TasksView tasks={tasks} setTasks={setTasks} />
-              <PlanView note={note} setNote={setNote} />
-            </div>
-
-          </div>
-        )}
-
-        {view === 'notes' && (
-          <NotesView
-            notes={notes} setNotes={setNotes}
-            categories={categories} setCategories={setCategories}
-            activeNoteId={activeNoteId} setActiveNoteId={setActiveNoteId}
-
-            isMobile={isMobile} // <--- CRITICAL: Passing the mobile state!
-          />
-        )}
-
-        {view === 'graph' && (
-          <GraphView
-            notes={notes} setNotes={setNotes}
-            activeNoteId={activeNoteId} setActiveNoteId={setActiveNoteId}
-            setView={setView}
-          />
-        )}
+        {view === 'timer' && <TimerView state={timerState} tasks={tasks} setTasks={setTasks} note={note} setNote={setNote} />}
+        {view === 'projects' && <ProjectsView projects={projects} setProjects={setProjects} />}
+        {view === 'ideas' && <IdeasView ideas={ideas} setIdeas={setIdeas} categories={categories} setCategories={setCategories} projects={projects} setProjects={setProjects} />}
+        {view === 'notes' && <NotesView notes={notes} setNotes={setNotes} categories={categories} setCategories={setCategories} activeNoteId={activeNoteId} setActiveNoteId={setActiveNoteId} isMobile={isMobile} />}
+        {view === 'graph' && <GraphView notes={notes} setNotes={setNotes} activeNoteId={activeNoteId} setActiveNoteId={setActiveNoteId} setView={setView} isMobile={isMobile} />}
       </main>
 
-      {/* 3. MOBILE BOTTOM NAV (Visible only on Mobile) */}
       {isMobile && <MobileNav view={view} setView={setView} />}
-
     </div>
   );
 }
 
 function App() {
-  // We store the current user in a simple state
   const [user, setUser] = useState(() => window.localStorage.getItem("last-user") || null);
-
-  const handleLogin = (username) => {
-    setUser(username);
-    window.localStorage.setItem("last-user", username);
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    window.localStorage.removeItem("last-user");
-  };
-
-  if (!user) {
-    return <LoginView onLogin={handleLogin} />;
-  }
-
-  // KEY TRICK: The 'key={user}' prop forces React to completely destroy 
-  // and recreate the Dashboard when the user changes. 
-  // This ensures the hooks reload data for the NEW user immediately.
+  const handleLogin = (username) => { setUser(username); window.localStorage.setItem("last-user", username); };
+  const handleLogout = () => { setUser(null); window.localStorage.removeItem("last-user"); };
+  if (!user) return <LoginView onLogin={handleLogin} />;
   return <Dashboard key={user} currentUser={user} onLogout={handleLogout} />;
 }
 

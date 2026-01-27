@@ -327,15 +327,13 @@ const ProjectsView = ({ projects, setProjects }) => {
   );
 };
 
-// --- COMPONENT: NOTES VIEW (Maximized Mobile Layout) ---
+// --- COMPONENT: NOTES VIEW (Fixed Desktop Category) ---
 const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, setActiveNoteId, isMobile }) => {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [linkSearch, setLinkSearch] = useState("");
   const [isCreatingCat, setIsCreatingCat] = useState(false);
   const [newCatName, setNewCatName] = useState("");
-
-  // New state to toggle connections panel
   const [showConnections, setShowConnections] = useState(false);
 
   const activeNote = notes.find(n => n.id === activeNoteId);
@@ -354,8 +352,6 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
 
   return (
     <div className={clsx("w-full h-full flex gap-6 animate-in fade-in duration-500", !isMobile && "pb-24")}>
-
-      {/* 1. LIST VIEW (Unchanged) */}
       {showList && (
         <div className={clsx("flex flex-col gap-4", isMobile ? "w-full h-full pb-20" : "w-64")}>
           {!isMobile && <div className="flex items-center gap-2 px-2 text-rose-950/50"><Book size={16} /> <span className="text-xs font-bold uppercase tracking-widest">Library</span></div>}
@@ -377,17 +373,13 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
         </div>
       )}
 
-      {/* 2. EDITOR VIEW (Fixed Layout) */}
       {showEditor && (
         <div className={clsx("flex-1 bg-white rounded-[2rem] border border-rose-100 shadow-sm p-6 flex flex-col md:flex-row gap-8 overflow-hidden relative", isMobile && "fixed inset-0 z-[200] rounded-none p-0 bg-[#fff5f7]")}>
 
-          {/* MOBILE HEADER: Back + Metadata + Connections Toggle */}
           {isMobile && (
             <div className="flex items-center justify-between px-4 py-3 bg-white/80 backdrop-blur border-b border-rose-100 sticky top-0 z-10">
               <button onClick={() => setActiveNoteId(null)} className="p-2 -ml-2 text-rose-400 rounded-full hover:bg-rose-50"><ArrowLeft size={24} /></button>
-
               <div className="flex items-center gap-2">
-                {/* Category Selector (Compact) */}
                 {isCreatingCat ? (
                   <div className="flex items-center gap-1">
                     <input autoFocus value={newCatName} onChange={e => setNewCatName(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveNewCategory()} placeholder="New..." className="w-20 bg-rose-50 border border-rose-200 text-rose-600 px-2 py-1 rounded text-[10px] font-bold outline-none" />
@@ -399,7 +391,6 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
                     <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-rose-400 pointer-events-none" />
                   </div>
                 )}
-                {/* NEW: Connections Button (Moves the huge panel to a popup) */}
                 <button onClick={() => setShowConnections(true)} className={clsx("p-2 rounded-full transition-colors", (activeNote.links?.length > 0) ? "bg-rose-100 text-rose-600" : "bg-transparent text-rose-300")}><LinkIcon size={20} /></button>
               </div>
             </div>
@@ -407,18 +398,41 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
 
           {activeNote ? (
             <>
-              {/* MAIN WRITING AREA */}
               <div className={clsx("flex-1 flex flex-col h-full", isMobile && "px-5 pt-4 pb-32")}>
+                {/* --- FIX: RESTORED DESKTOP CATEGORY SELECTOR --- */}
                 {!isMobile && (
-                  // Desktop Metadata Header (Hidden on Mobile as it's now in the top bar)
                   <div className="flex items-center gap-3 text-[10px] text-slate-400 mb-6">
-                    {/* ... (Keep existing desktop category logic) ... */}
-                    <span className="bg-rose-50 px-2 py-1 rounded text-rose-400 font-bold">{activeNote.category}</span>
+                    {isCreatingCat ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          autoFocus
+                          value={newCatName}
+                          onChange={e => setNewCatName(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && saveNewCategory()}
+                          placeholder="New Category..."
+                          className="bg-rose-50 border border-rose-200 text-rose-600 px-2 py-1 rounded text-[10px] font-bold outline-none w-32"
+                        />
+                        <button onClick={saveNewCategory} className="text-emerald-500 hover:bg-emerald-50 p-1 rounded"><Check size={12} /></button>
+                        <button onClick={() => setIsCreatingCat(false)} className="text-rose-400 hover:bg-rose-50 p-1 rounded"><X size={12} /></button>
+                      </div>
+                    ) : (
+                      <div className="relative group">
+                        <select
+                          value={activeNote.category}
+                          onChange={handleCategoryChange}
+                          className="appearance-none bg-rose-50 hover:bg-rose-100 text-rose-500 px-3 py-1 rounded-md font-bold cursor-pointer outline-none transition-colors pr-6"
+                        >
+                          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                          <option value="ADD_NEW_CAT_OPTION">+ New...</option>
+                        </select>
+                        <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-rose-400 pointer-events-none" />
+                      </div>
+                    )}
                     <span>{activeNote.updatedAt}</span>
                   </div>
                 )}
+                {/* ----------------------------------------------- */}
 
-                {/* Title Input: Fixed padding/width issues */}
                 <input
                   value={activeNote.title}
                   onChange={e => updateNote(activeNote.id, 'title', e.target.value)}
@@ -426,7 +440,6 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
                   placeholder="Untitled Note"
                 />
 
-                {/* Body Textarea */}
                 <textarea
                   value={activeNote.body}
                   onChange={e => updateNote(activeNote.id, 'body', e.target.value)}
@@ -435,7 +448,6 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
                 />
               </div>
 
-              {/* CONNECTIONS PANEL (Desktop: Sidebar, Mobile: Modal Overlay) */}
               {(!isMobile || showConnections) && (
                 <div className={clsx(
                   isMobile

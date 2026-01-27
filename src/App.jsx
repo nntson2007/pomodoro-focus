@@ -327,6 +327,7 @@ const ProjectsView = ({ projects, setProjects }) => {
   );
 };
 
+// --- COMPONENT: NOTES VIEW (Fixed Mobile Layout) ---
 const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, setActiveNoteId, isMobile }) => {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -349,7 +350,7 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
   return (
     <div className={clsx("w-full h-full flex gap-6 animate-in fade-in duration-500", !isMobile && "pb-24")}>
       {showList && (
-        <div className={clsx("flex flex-col gap-4", isMobile ? "w-full" : "w-64")}>
+        <div className={clsx("flex flex-col gap-4", isMobile ? "w-full h-full pb-20" : "w-64")}>
           {!isMobile && <div className="flex items-center gap-2 px-2 text-rose-950/50"><Book size={16} /> <span className="text-xs font-bold uppercase tracking-widest">Library</span></div>}
           <div className="bg-white/60 rounded-2xl border border-rose-100/50 p-3 space-y-1">
             <button onClick={() => setSelectedCategory("All")} className={clsx("w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-colors", selectedCategory === "All" ? "bg-white text-rose-600 shadow-sm" : "text-slate-400 hover:bg-rose-50")}>All Notes</button>
@@ -369,18 +370,19 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
         </div>
       )}
       {showEditor && (
-        <div className={clsx("flex-1 bg-white rounded-[2rem] border border-rose-100 shadow-sm p-6 flex flex-col md:flex-row gap-8 overflow-hidden relative", isMobile && "fixed inset-0 z-[200] rounded-none p-4 overflow-y-auto")}>
-          {isMobile && <div className="absolute top-4 left-4 z-50 flex items-center gap-2"><button onClick={() => setActiveNoteId(null)} className="bg-rose-50 text-rose-500 p-2 rounded-full hover:bg-rose-100 border border-rose-100 shadow-sm"><ArrowLeft size={20} /></button></div>}
+        <div className={clsx("flex-1 bg-white rounded-[2rem] border border-rose-100 shadow-sm p-6 flex flex-col md:flex-row gap-8 overflow-hidden relative", isMobile && "fixed inset-0 z-[200] rounded-none p-4 overflow-y-auto bg-[#fff5f7]")}>
+          {isMobile && <div className="absolute top-4 left-4 z-50 flex items-center gap-2"><button onClick={() => setActiveNoteId(null)} className="bg-white/80 backdrop-blur text-rose-500 p-2 rounded-full hover:bg-rose-50 border border-rose-200 shadow-md"><ArrowLeft size={20} /></button></div>}
           {activeNote ? (
             <>
-              <div className={clsx("flex-1 flex flex-col h-full", isMobile && "mt-12 min-h-[500px]")}>
+              {/* Added pb-32 here so text isn't hidden by mobile nav */}
+              <div className={clsx("flex-1 flex flex-col h-full", isMobile && "mt-12 min-h-[500px] pb-32")}>
                 <div className="flex items-center gap-3 text-[10px] text-slate-400 mb-6">
                   {isCreatingCat ? (<div className="flex items-center gap-1"><input autoFocus value={newCatName} onChange={e => setNewCatName(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveNewCategory()} placeholder="New Category..." className="bg-rose-50 border border-rose-200 text-rose-600 px-2 py-1 rounded text-[10px] font-bold outline-none w-32" /><button onClick={saveNewCategory} className="text-emerald-500 hover:bg-emerald-50 p-1 rounded"><Check size={12} /></button></div>) : (<div className="relative group"><select value={activeNote.category} onChange={handleCategoryChange} className="appearance-none bg-rose-50 hover:bg-rose-100 text-rose-500 px-3 py-1 rounded-md font-bold cursor-pointer outline-none transition-colors pr-6">{categories.map(c => <option key={c} value={c}>{c}</option>)}<option value="ADD_NEW_CAT_OPTION">+ New...</option></select><ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-rose-400 pointer-events-none" /></div>)}<span>{activeNote.updatedAt}</span>
                 </div>
                 <input value={activeNote.title} onChange={e => updateNote(activeNote.id, 'title', e.target.value)} className="text-3xl font-bold text-rose-950 outline-none bg-transparent mb-4 placeholder:text-rose-200" placeholder="Untitled Note" />
                 <textarea value={activeNote.body} onChange={e => updateNote(activeNote.id, 'body', e.target.value)} placeholder="Start writing..." className="flex-1 w-full resize-none outline-none text-base text-slate-600 leading-7 custom-scrollbar bg-transparent font-medium" />
               </div>
-              <div className={clsx("border-l border-rose-50 pl-6 flex flex-col", isMobile ? "w-full border-l-0 border-t pl-0 pt-6 mt-6 h-80 shrink-0" : "w-64 h-full")}>
+              <div className={clsx("border-l border-rose-50 pl-6 flex flex-col", isMobile ? "w-full border-l-0 border-t pl-0 pt-6 mt-6 h-80 shrink-0 pb-32" : "w-64 h-full")}>
                 <div className="flex items-center gap-2 text-xs font-bold text-rose-950 mb-4"><LinkIcon size={14} className="text-rose-400" /> Connections</div>
                 <button onClick={createSonNote} className="w-full mb-4 bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors border border-rose-100"><Rocket size={14} /> Create Child Note</button>
                 <div className="relative mb-3"><Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-300" /><input value={linkSearch} onChange={e => setLinkSearch(e.target.value)} placeholder="Link to other note..." className="w-full pl-8 pr-2 py-2 bg-slate-50 border border-transparent focus:border-rose-200 rounded-xl text-[10px] outline-none transition-all" /></div>
@@ -423,7 +425,8 @@ const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setVie
   useEffect(() => {
     const tick = () => {
       const nodes = simulationNodes.current; if (!nodes) return;
-      const REPULSION = isMobile ? 4000 : 6000; const SPRING_LEN = 100; const SPRING_K = 0.005; const CENTER_GRAVITY = 0.0005; const DAMPING = 0.88;
+      // Tweaked physics for mobile stability
+      const REPULSION = isMobile ? 3000 : 6000; const SPRING_LEN = 100; const SPRING_K = 0.005; const CENTER_GRAVITY = 0.0005; const DAMPING = 0.88;
       for (let i = 0; i < nodes.length; i++) {
         const node = nodes[i]; if (dragRef.current.active && dragRef.current.type === 'NODE' && dragRef.current.nodeId === node.id) continue;
         node.vx -= node.x * CENTER_GRAVITY; node.vy -= node.y * CENTER_GRAVITY;
@@ -447,7 +450,7 @@ const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setVie
 
   return (
     <div className={clsx("w-full h-full relative overflow-hidden animate-in fade-in duration-700", !isMobile && "pb-4")}>
-      <div className={clsx("bg-slate-900 overflow-hidden relative border border-slate-800 shadow-2xl select-none flex items-center justify-center", isMobile ? "absolute inset-0 z-0" : "w-full h-full rounded-[2rem]")}>
+      <div className={clsx("bg-slate-900 overflow-hidden border border-slate-800 shadow-2xl select-none flex items-center justify-center", isMobile ? "fixed inset-0 z-[0] w-screen h-screen" : "w-full h-full relative rounded-[2rem]")}>
         <div className="absolute top-6 right-6 z-50 flex flex-col gap-2 bg-slate-800/80 backdrop-blur p-2 rounded-xl border border-slate-700 shadow-xl"><button onClick={() => setTransform(t => ({ ...t, scale: t.scale + 0.2 }))} className="p-2 text-white hover:bg-slate-700 rounded-lg"><Plus size={20} /></button><button onClick={() => setTransform(t => ({ ...t, scale: Math.max(0.1, t.scale - 0.2) }))} className="p-2 text-white hover:bg-slate-700 rounded-lg flex items-center justify-center h-9 w-9 font-bold text-lg">-</button><button onClick={() => setTransform({ x: 0, y: 0, scale: 1 })} className="p-2 text-rose-400 hover:bg-slate-700 rounded-lg"><RotateCcw size={20} /></button></div>
         <div ref={containerRef} onMouseDown={(e) => handleMouseDown(e, null)} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onTouchStart={(e) => { const t = e.touches[0]; handleMouseDown({ ...e, clientX: t.clientX, clientY: t.clientY, target: e.target }, null); }} onTouchMove={(e) => { const t = e.touches[0]; handleMouseMove({ ...e, clientX: t.clientX, clientY: t.clientY }); }} onTouchEnd={handleMouseUp} className="w-full h-full cursor-grab active:cursor-grabbing flex items-center justify-center touch-none">
           <div style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`, transformOrigin: 'center center' }} className="relative w-0 h-0 flex items-center justify-center">

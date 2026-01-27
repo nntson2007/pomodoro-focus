@@ -466,17 +466,24 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
   );
 };
 
-// --- COMPONENT: GRAPH VIEW (Fixed Mobile Touch & Layout) ---
+// --- COMPONENT: GRAPH VIEW (With Zoom & Full-Height Desktop Sidebar) ---
 const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setView, isMobile }) => {
   const nodeRefs = useRef({});
   const linkRefs = useRef({});
   const containerRef = useRef(null);
   const simulationNodes = useRef([]);
   const requestRef = useRef();
+
+  // State & Refs for Pan/Zoom
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [selectedNode, setSelectedNode] = useState(null);
   const dragRef = useRef({ active: false, type: null, startX: 0, startY: 0, nodeId: null });
 
+  // Refs for Pinch Zoom
+  const initialPinchDistance = useRef(null);
+  const lastScale = useRef(1);
+
+  // --- 1. Physics Engine (Unchanged) ---
   useEffect(() => {
     const safeNotes = Array.isArray(notes) ? notes : [];
     simulationNodes.current = safeNotes.map(note => {
@@ -505,16 +512,111 @@ const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setVie
     requestRef.current = requestAnimationFrame(tick); return () => cancelAnimationFrame(requestRef.current);
   }, [isMobile]);
 
-  const handleMouseDown = (e, node = null) => { if (node) { e.stopPropagation(); dragRef.current = { active: true, type: 'NODE', startX: e.clientX, startY: e.clientY, nodeId: node.id }; setSelectedNode(node); } else { if (e.target.tagName !== 'DIV' && e.target.tagName !== 'svg') return; setSelectedNode(null); dragRef.current = { active: true, type: 'CANVAS', startX: e.clientX - transform.x, startY: e.clientY - transform.y, nodeId: null }; } };
-  const handleMouseMove = (e) => { if (!dragRef.current.active) return; if (dragRef.current.type === 'CANVAS') { setTransform(prev => ({ ...prev, x: e.clientX - dragRef.current.startX, y: e.clientY - dragRef.current.startY })); } else if (dragRef.current.type === 'NODE') { const node = simulationNodes.current.find(n => n.id === dragRef.current.nodeId); if (node && containerRef.current) { const rect = containerRef.current.getBoundingClientRect(); const centerX = rect.width / 2; const centerY = rect.height / 2; node.x = (e.clientX - rect.left - centerX - transform.x) / transform.scale; node.y = (e.clientY - rect.top - centerY - transform.y) / transform.scale; node.vx = 0; node.vy = 0; } } };
-  const handleMouseUp = () => { dragRef.current.active = false; };
+  // --- 2. Zoom & Pan Handlers ---
+
+  // Helper to calculate distance between two touch points
+  const getTouchDistance = (touches) => {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  // Mouse Wheel Zoom handler
+  const handleWheel = (e) => {
+    e.preventDefault();
+    const zoomSensitivity = 0.001;
+    const delta = -e.deltaY * zoomSensitivity; // Negative because scrolling down usually means zoom out
+    const newScale = Math.min(Math.max(0.1, transform.scale + delta), 4); // Clamp scale between 0.1x and 4x
+    setTransform(prev => ({ ...prev, scale: newScale }));
+  };
+
+  const handleMouseDown = (e, node = null) => {
+    if (node) {
+      e.stopPropagation();
+      dragRef.current = { active: true, type: 'NODE', startX: e.clientX, startY: e.clientY, nodeId: node.id };
+      setSelectedNode(node);
+    } else {
+      if (e.target.tagName !== 'DIV' && e.target.tagName !== 'svg') return;
+      setSelectedNode(null);
+      dragRef.current = { active: true, type: 'CANVAS', startX: e.clientX - transform.x, startY: e.clientY - transform.y, nodeId: null };
+    }
+  };
+
+  const handleMouseMove = (e) => {
+    if (!dragRef.current.active) return;
+    if (dragRef.current.type === 'CANVAS') {
+      setTransform(prev => ({ ...prev, x: e.clientX - dragRef.current.startX, y: e.clientY - dragRef.current.startY }));
+    } else if (dragRef.current.type === 'NODE') {
+      // ... existing node drag logic ...
+      const node = simulationNodes.current.find(n => n.id === dragRef.current.nodeId);
+      if (node && containerRef.current) { const rect = containerRef.current.getBoundingClientRect(); const centerX = rect.width / 2; const centerY = rect.height / 2; node.x = (e.clientX - rect.left - centerX - transform.x) / transform.scale; node.y = (e.clientY - rect.top - centerY - transform.y) / transform.scale; node.vx = 0; node.vy = 0; }
+    }
+  };
+
+  const handleMouseUp = () => {
+    dragRef.current.active = false;
+    initialPinchDistance.current = null; // Reset pinch state
+  };
+
+  // Touch Handlers (Unified Pan & Pinch)
+  const handleTouchStart = (e) => {
+    if (e.touches.length === 2) {
+      // Start Pinch
+      dragRef.current.active = false; // Cancel panning if pinching starts
+      initialPinchDistance.current = getTouchDistance(e.touches);
+      lastScale.current = transform.scale;
+    } else if (e.touches.length === 1) {
+      // Start Pan (existing logic)
+      const t = e.touches[0];
+      handleMouseDown({ ...e, clientX: t.clientX, clientY: t.clientY, target: e.target }, null);
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (e.touches.length === 2 && initialPinchDistance.current) {
+      // Handle Pinch Move
+      const currentDistance = getTouchDistance(e.touches);
+      const scaleFactor = currentDistance / initialPinchDistance.current;
+      const newScale = Math.min(Math.max(0.1, lastScale.current * scaleFactor), 4);
+      setTransform(prev => ({ ...prev, scale: newScale }));
+    } else if (e.touches.length === 1) {
+      // Handle Pan Move (existing logic)
+      const t = e.touches[0];
+      handleMouseMove({ ...e, clientX: t.clientX, clientY: t.clientY });
+    }
+  };
+
   if (!notes) return null;
 
   return (
     <div className={clsx("w-full h-full relative overflow-hidden animate-in fade-in duration-700", !isMobile && "pb-4")}>
-      <div className={clsx("bg-slate-900 overflow-hidden border border-slate-800 shadow-2xl select-none flex items-center justify-center", isMobile ? "fixed inset-x-0 bottom-0 top-[60px] z-[0]" : "w-full h-full relative rounded-[2rem]")}>
-        <div className="absolute top-6 right-6 z-50 flex flex-col gap-2 bg-slate-800/80 backdrop-blur p-2 rounded-xl border border-slate-700 shadow-xl"><button onClick={() => setTransform(t => ({ ...t, scale: t.scale + 0.2 }))} className="p-2 text-white hover:bg-slate-700 rounded-lg"><Plus size={20} /></button><button onClick={() => setTransform(t => ({ ...t, scale: Math.max(0.1, t.scale - 0.2) }))} className="p-2 text-white hover:bg-slate-700 rounded-lg flex items-center justify-center h-9 w-9 font-bold text-lg">-</button><button onClick={() => setTransform({ x: 0, y: 0, scale: 1 })} className="p-2 text-rose-400 hover:bg-slate-700 rounded-lg"><RotateCcw size={20} /></button></div>
-        <div ref={containerRef} onMouseDown={(e) => handleMouseDown(e, null)} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onTouchStart={(e) => { const t = e.touches[0]; handleMouseDown({ ...e, clientX: t.clientX, clientY: t.clientY, target: e.target }, null); }} onTouchMove={(e) => { const t = e.touches[0]; handleMouseMove({ ...e, clientX: t.clientX, clientY: t.clientY }); }} onTouchEnd={handleMouseUp} className="w-full h-full cursor-grab active:cursor-grabbing flex items-center justify-center touch-none">
+
+      {/* --- GRAPH CANVAS --- */}
+      <div
+        // Added onWheel handler here
+        onWheel={handleWheel}
+        className={clsx("bg-slate-900 overflow-hidden border border-slate-800 shadow-2xl select-none flex items-center justify-center", isMobile ? "fixed inset-x-0 bottom-0 top-[60px] z-[0]" : "w-full h-full relative rounded-[2rem]")}
+      >
+        {/* HUD Buttons */}
+        <div className="absolute top-6 right-6 z-50 flex flex-col gap-2 bg-slate-800/80 backdrop-blur p-2 rounded-xl border border-slate-700 shadow-xl">
+          <button onClick={() => setTransform(t => ({ ...t, scale: t.scale + 0.2 }))} className="p-2 text-white hover:bg-slate-700 rounded-lg"><Plus size={20} /></button>
+          <button onClick={() => setTransform(t => ({ ...t, scale: Math.max(0.1, t.scale - 0.2) }))} className="p-2 text-white hover:bg-slate-700 rounded-lg flex items-center justify-center h-9 w-9 font-bold text-lg">-</button>
+          <button onClick={() => setTransform({ x: 0, y: 0, scale: 1 })} className="p-2 text-rose-400 hover:bg-slate-700 rounded-lg"><RotateCcw size={20} /></button>
+        </div>
+
+        {/* Interactive Container */}
+        <div
+          ref={containerRef}
+          onMouseDown={(e) => handleMouseDown(e, null)}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          // Updated Touch Events
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleMouseUp}
+          className="w-full h-full cursor-grab active:cursor-grabbing flex items-center justify-center touch-none"
+        >
           <div style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`, transformOrigin: 'center center' }} className="relative w-0 h-0 flex items-center justify-center">
             <svg className="overflow-visible absolute top-0 left-0 pointer-events-none">{notes.map(node => ((Array.isArray(node.links) ? node.links : []).map(linkId => (<line key={`${node.id}-${linkId}`} ref={el => linkRefs.current[`${node.id}-${linkId}`] = el} stroke="white" strokeWidth="1.5" strokeOpacity="0.4" strokeLinecap="round" />))))}</svg>
             {notes.map(node => { const linkCount = Array.isArray(node.links) ? node.links.length : 0; const size = Math.min(80, 32 + (linkCount * 8)); return (<div key={node.id} ref={el => nodeRefs.current[node.id] = el} onMouseDown={(e) => handleMouseDown(e, node)} onTouchStart={(e) => { e.stopPropagation(); const t = e.touches[0]; handleMouseDown({ ...e, clientX: t.clientX, clientY: t.clientY }, node); }} style={{ width: size, height: size }} className={clsx("absolute left-0 top-0 rounded-full flex items-center justify-center border shadow-[0_0_20px_rgba(0,0,0,0.3)] cursor-pointer transition-colors duration-200", selectedNode?.id === node.id ? "bg-rose-500 border-rose-300 z-50 ring-4 ring-rose-500/20" : "bg-slate-800 border-slate-600")}><div className={clsx("absolute -top-8 bg-slate-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg whitespace-nowrap border border-slate-700 shadow-xl z-50 pointer-events-none transition-opacity", (selectedNode?.id === node.id || !isMobile) ? "opacity-100" : "opacity-0")}>{node.title}</div></div>) })}
@@ -522,15 +624,22 @@ const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setVie
         </div>
       </div>
 
-      {/* INSPECTOR PANEL */}
+      {/* --- INSPECTOR PANEL (Fixed Desktop Height) --- */}
       <div
-        // FIX: Added stopPropagation here to stop drag events bubbling to the canvas
         onTouchStart={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}
-        className={clsx("bg-white shadow-2xl flex flex-col transition-all duration-300 ease-out z-[100]", isMobile ? "fixed bottom-0 left-0 right-0 rounded-t-[2rem] border-t border-rose-100" : "absolute right-4 top-4 bottom-4 w-80 rounded-[2rem] border border-rose-100 p-6 animate-in slide-in-from-right-4", (isMobile && !selectedNode) ? "translate-y-[120%]" : "translate-y-0")}
+        // FIX: Desktop classes changed to 'absolute right-4 top-4 bottom-4 flex flex-col' to force full height stretch.
+        className={clsx(
+          "bg-white shadow-2xl transition-all duration-300 ease-out z-[100]",
+          isMobile
+            ? "fixed bottom-0 left-0 right-0 rounded-t-[2rem] border-t border-rose-100 flex flex-col"
+            : "absolute right-4 top-4 bottom-4 w-80 rounded-[2rem] border border-rose-100 p-6 animate-in slide-in-from-right-4 flex flex-col",
+          (isMobile && !selectedNode) ? "translate-y-[120%]" : "translate-y-0"
+        )}
         style={isMobile ? { maxHeight: '60vh' } : {}}
       >
         {selectedNode && (
+          // FIX: Added h-full to inner container to ensure it fills the stretched parent
           <div className="p-6 h-full flex flex-col">
             {isMobile && <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 shrink-0" />}
 
@@ -542,7 +651,7 @@ const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setVie
               {isMobile && <button onClick={() => setSelectedNode(null)} className="p-1 bg-slate-100 rounded-full text-slate-400"><X size={16} /></button>}
             </div>
 
-            {/* Scrollable Text Area */}
+            {/* Scrollable Text Area - flex-1 will expand to fill space */}
             <div className="flex-1 overflow-y-auto min-h-0 my-4 bg-slate-50 p-3 rounded-xl border border-rose-50/50 custom-scrollbar">
               <div className="text-xs text-slate-500 leading-relaxed whitespace-pre-wrap">
                 {selectedNode.body || <span className="italic opacity-50">No details...</span>}

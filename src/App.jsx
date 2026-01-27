@@ -327,27 +327,35 @@ const ProjectsView = ({ projects, setProjects }) => {
   );
 };
 
+// --- COMPONENT: NOTES VIEW (Maximized Mobile Layout) ---
 const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, setActiveNoteId, isMobile }) => {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [linkSearch, setLinkSearch] = useState("");
   const [isCreatingCat, setIsCreatingCat] = useState(false);
   const [newCatName, setNewCatName] = useState("");
+
+  // New state to toggle connections panel
+  const [showConnections, setShowConnections] = useState(false);
+
   const activeNote = notes.find(n => n.id === activeNoteId);
 
   const createNote = () => { const newNote = { id: Date.now(), title: "Untitled", category: selectedCategory === "All" ? categories[0] : selectedCategory, body: "", updatedAt: new Date().toLocaleDateString(), links: [] }; setNotes([newNote, ...notes]); setActiveNoteId(newNote.id); };
-  const createSonNote = () => { if (!activeNote) return; const newSonId = Date.now(); const newSon = { id: newSonId, title: `Child of ${activeNote.title}`, category: activeNote.category, body: "", updatedAt: new Date().toLocaleDateString(), links: [activeNote.id] }; setNotes(prev => { const withSon = [newSon, ...prev]; return withSon.map(n => n.id === activeNote.id ? { ...n, links: [...(n.links || []), newSonId] } : n); }); setActiveNoteId(newSonId); };
+  const createSonNote = () => { if (!activeNote) return; const newSonId = Date.now(); const newSon = { id: newSonId, title: `Child of ${activeNote.title}`, category: activeNote.category, body: "", updatedAt: new Date().toLocaleDateString(), links: [activeNote.id] }; setNotes(prev => { const withSon = [newSon, ...prev]; return withSon.map(n => n.id === activeNote.id ? { ...n, links: [...(n.links || []), newSonId] } : n); }); setActiveNoteId(newSonId); setShowConnections(false); };
   const updateNote = (id, field, value) => setNotes(notes.map(n => n.id === id ? { ...n, [field]: value } : n));
   const deleteNote = (e, id) => { e.stopPropagation(); setNotes(notes.filter(n => n.id !== id)); if (activeNoteId === id) setActiveNoteId(null); };
   const toggleLink = (targetId) => { if (!activeNote) return; const isLinked = (activeNote.links || []).includes(targetId); setNotes(notes.map(n => { if (n.id === activeNote.id) { return { ...n, links: isLinked ? n.links.filter(l => l !== targetId) : [...(n.links || []), targetId] }; } if (n.id === targetId) { return { ...n, links: isLinked ? n.links.filter(l => l !== activeNote.id) : [...(n.links || []), activeNote.id] }; } return n; })); };
   const handleCategoryChange = (e) => { const val = e.target.value; if (val === "ADD_NEW_CAT_OPTION") { setIsCreatingCat(true); setNewCatName(""); } else { updateNote(activeNote.id, 'category', val); } };
   const saveNewCategory = () => { if (newCatName.trim()) { if (!categories.includes(newCatName)) { setCategories([...categories, newCatName]); } updateNote(activeNote.id, 'category', newCatName); } setIsCreatingCat(false); };
   const filteredNotes = notes.filter(note => { const matchesCategory = selectedCategory === "All" ? true : note.category === selectedCategory; const matchesSearch = note.title.toLowerCase().includes(searchQuery.toLowerCase()); return matchesCategory && matchesSearch; });
+
   const showList = !isMobile || (isMobile && !activeNoteId);
   const showEditor = !isMobile || (isMobile && activeNoteId);
 
   return (
     <div className={clsx("w-full h-full flex gap-6 animate-in fade-in duration-500", !isMobile && "pb-24")}>
+
+      {/* 1. LIST VIEW (Unchanged) */}
       {showList && (
         <div className={clsx("flex flex-col gap-4", isMobile ? "w-full h-full pb-20" : "w-64")}>
           {!isMobile && <div className="flex items-center gap-2 px-2 text-rose-950/50"><Book size={16} /> <span className="text-xs font-bold uppercase tracking-widest">Library</span></div>}
@@ -368,35 +376,86 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
           </div>
         </div>
       )}
+
+      {/* 2. EDITOR VIEW (Fixed Layout) */}
       {showEditor && (
-        <div className={clsx("flex-1 bg-white rounded-[2rem] border border-rose-100 shadow-sm p-6 flex flex-col md:flex-row gap-8 overflow-hidden relative", isMobile && "fixed inset-0 z-[200] rounded-none p-4 overflow-y-auto bg-[#fff5f7]")}>
-          {isMobile && <div className="absolute top-4 left-4 z-50 flex items-center gap-2"><button onClick={() => setActiveNoteId(null)} className="bg-white/80 backdrop-blur text-rose-500 p-2 rounded-full hover:bg-rose-50 border border-rose-200 shadow-md"><ArrowLeft size={20} /></button></div>}
+        <div className={clsx("flex-1 bg-white rounded-[2rem] border border-rose-100 shadow-sm p-6 flex flex-col md:flex-row gap-8 overflow-hidden relative", isMobile && "fixed inset-0 z-[200] rounded-none p-0 bg-[#fff5f7]")}>
+
+          {/* MOBILE HEADER: Back + Metadata + Connections Toggle */}
+          {isMobile && (
+            <div className="flex items-center justify-between px-4 py-3 bg-white/80 backdrop-blur border-b border-rose-100 sticky top-0 z-10">
+              <button onClick={() => setActiveNoteId(null)} className="p-2 -ml-2 text-rose-400 rounded-full hover:bg-rose-50"><ArrowLeft size={24} /></button>
+
+              <div className="flex items-center gap-2">
+                {/* Category Selector (Compact) */}
+                {isCreatingCat ? (
+                  <div className="flex items-center gap-1">
+                    <input autoFocus value={newCatName} onChange={e => setNewCatName(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveNewCategory()} placeholder="New..." className="w-20 bg-rose-50 border border-rose-200 text-rose-600 px-2 py-1 rounded text-[10px] font-bold outline-none" />
+                    <button onClick={saveNewCategory} className="text-emerald-500"><Check size={14} /></button>
+                  </div>
+                ) : (
+                  <div className="relative group">
+                    <select value={activeNote.category} onChange={handleCategoryChange} className="appearance-none bg-rose-50 text-rose-500 text-[10px] font-bold px-3 py-1.5 rounded-full outline-none pr-6">{categories.map(c => <option key={c} value={c}>{c}</option>)}<option value="ADD_NEW_CAT_OPTION">+ New...</option></select>
+                    <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-rose-400 pointer-events-none" />
+                  </div>
+                )}
+                {/* NEW: Connections Button (Moves the huge panel to a popup) */}
+                <button onClick={() => setShowConnections(true)} className={clsx("p-2 rounded-full transition-colors", (activeNote.links?.length > 0) ? "bg-rose-100 text-rose-600" : "bg-transparent text-rose-300")}><LinkIcon size={20} /></button>
+              </div>
+            </div>
+          )}
+
           {activeNote ? (
             <>
-              {/* Reduced bottom padding (pb-24) and removed min-h-[500px] to fix blank space issue */}
-              <div className={clsx("flex-1 flex flex-col h-full", isMobile && "mt-12 pb-24")}>
-                <div className="flex items-center gap-3 text-[10px] text-slate-400 mb-6">
-                  {isCreatingCat ? (<div className="flex items-center gap-1"><input autoFocus value={newCatName} onChange={e => setNewCatName(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveNewCategory()} placeholder="New Category..." className="bg-rose-50 border border-rose-200 text-rose-600 px-2 py-1 rounded text-[10px] font-bold outline-none w-32" /><button onClick={saveNewCategory} className="text-emerald-500 hover:bg-emerald-50 p-1 rounded"><Check size={12} /></button></div>) : (<div className="relative group"><select value={activeNote.category} onChange={handleCategoryChange} className="appearance-none bg-rose-50 hover:bg-rose-100 text-rose-500 px-3 py-1 rounded-md font-bold cursor-pointer outline-none transition-colors pr-6">{categories.map(c => <option key={c} value={c}>{c}</option>)}<option value="ADD_NEW_CAT_OPTION">+ New...</option></select><ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-rose-400 pointer-events-none" /></div>)}<span>{activeNote.updatedAt}</span>
-                </div>
-                {/* Removed w-full to prevent horizontal scroll issues, allowed flexible width */}
-                <input value={activeNote.title} onChange={e => updateNote(activeNote.id, 'title', e.target.value)} className="text-3xl font-bold text-rose-950 outline-none bg-transparent mb-4 placeholder:text-rose-200" placeholder="Untitled Note" />
-                <textarea value={activeNote.body} onChange={e => updateNote(activeNote.id, 'body', e.target.value)} placeholder="Start writing..." className="flex-1 w-full resize-none outline-none text-base text-slate-600 leading-7 custom-scrollbar bg-transparent font-medium" />
+              {/* MAIN WRITING AREA */}
+              <div className={clsx("flex-1 flex flex-col h-full", isMobile && "px-5 pt-4 pb-32")}>
+                {!isMobile && (
+                  // Desktop Metadata Header (Hidden on Mobile as it's now in the top bar)
+                  <div className="flex items-center gap-3 text-[10px] text-slate-400 mb-6">
+                    {/* ... (Keep existing desktop category logic) ... */}
+                    <span className="bg-rose-50 px-2 py-1 rounded text-rose-400 font-bold">{activeNote.category}</span>
+                    <span>{activeNote.updatedAt}</span>
+                  </div>
+                )}
+
+                {/* Title Input: Fixed padding/width issues */}
+                <input
+                  value={activeNote.title}
+                  onChange={e => updateNote(activeNote.id, 'title', e.target.value)}
+                  className="w-full text-3xl font-bold text-rose-950 outline-none bg-transparent mb-4 placeholder:text-rose-200"
+                  placeholder="Untitled Note"
+                />
+
+                {/* Body Textarea */}
+                <textarea
+                  value={activeNote.body}
+                  onChange={e => updateNote(activeNote.id, 'body', e.target.value)}
+                  placeholder="Start writing..."
+                  className="flex-1 w-full resize-none outline-none text-base text-slate-600 leading-7 custom-scrollbar bg-transparent font-medium"
+                />
               </div>
 
-              {/* Connections Panel: Removed fixed height, uses shrink-0 to sit naturally at bottom */}
-              <div className={clsx("border-l border-rose-50 pl-6 flex flex-col", isMobile ? "w-full border-l-0 border-t pl-0 pt-6 mt-0 shrink-0 pb-28" : "w-64 h-full")}>
-                <div className="flex items-center gap-2 text-xs font-bold text-rose-950 mb-4"><LinkIcon size={14} className="text-rose-400" /> Connections</div>
-                <button onClick={createSonNote} className="w-full mb-4 bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors border border-rose-100"><Rocket size={14} /> Create Child Note</button>
-                <div className="relative mb-3"><Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-300" /><input value={linkSearch} onChange={e => setLinkSearch(e.target.value)} placeholder="Link to other note..." className="w-full pl-8 pr-2 py-2 bg-slate-50 border border-transparent focus:border-rose-200 rounded-xl text-[10px] outline-none transition-all" /></div>
-                <div className={clsx("flex-1 overflow-y-auto custom-scrollbar space-y-1", isMobile && "max-h-48")}>
-                  {/* Added max-h-48 on mobile so connections list doesn't grow infinitely */}
-                  {notes.filter(n => n.id !== activeNote.id).filter(n => n.title.toLowerCase().includes(linkSearch.toLowerCase())).map(other => {
-                    const isLinked = (activeNote.links || []).includes(other.id);
-                    return (<button key={other.id} onClick={() => toggleLink(other.id)} className={clsx("w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-between group", isLinked ? "bg-rose-100 text-rose-700 border border-rose-200" : "bg-white text-slate-500 border border-transparent hover:bg-rose-50")}><span className="truncate flex-1">{other.title || "Untitled"}</span>{isLinked ? (<Check size={12} className="text-rose-500" />) : (<Plus size={12} className="opacity-0 group-hover:opacity-100 text-rose-300" />)}</button>);
-                  })}
-                  {notes.length <= 1 && <div className="text-center text-[10px] text-slate-300 italic mt-4">No other notes to link.</div>}
+              {/* CONNECTIONS PANEL (Desktop: Sidebar, Mobile: Modal Overlay) */}
+              {(!isMobile || showConnections) && (
+                <div className={clsx(
+                  isMobile
+                    ? "fixed inset-0 z-[300] bg-white/95 backdrop-blur-xl p-6 flex flex-col animate-in slide-in-from-bottom-10"
+                    : "w-64 border-l border-rose-50 pl-6 flex flex-col"
+                )}>
+                  {isMobile && <div className="flex justify-end mb-4"><button onClick={() => setShowConnections(false)} className="p-2 bg-rose-50 text-rose-400 rounded-full"><X size={24} /></button></div>}
+
+                  <div className="flex items-center gap-2 text-xs font-bold text-rose-950 mb-4"><LinkIcon size={14} className="text-rose-400" /> Connections</div>
+                  <button onClick={createSonNote} className="w-full mb-4 bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors border border-rose-100"><Rocket size={14} /> Create Child Note</button>
+                  <div className="relative mb-3"><Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-300" /><input value={linkSearch} onChange={e => setLinkSearch(e.target.value)} placeholder="Link to other note..." className="w-full pl-8 pr-2 py-2 bg-slate-50 border border-transparent focus:border-rose-200 rounded-xl text-[10px] outline-none transition-all" /></div>
+
+                  <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1">
+                    {notes.filter(n => n.id !== activeNote.id).filter(n => n.title.toLowerCase().includes(linkSearch.toLowerCase())).map(other => {
+                      const isLinked = (activeNote.links || []).includes(other.id);
+                      return (<button key={other.id} onClick={() => toggleLink(other.id)} className={clsx("w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-between group", isLinked ? "bg-rose-100 text-rose-700 border border-rose-200" : "bg-white text-slate-500 border border-transparent hover:bg-rose-50")}><span className="truncate flex-1">{other.title || "Untitled"}</span>{isLinked ? (<Check size={12} className="text-rose-500" />) : (<Plus size={12} className="opacity-0 group-hover:opacity-100 text-rose-300" />)}</button>);
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-rose-200 opacity-50"><Book size={64} className="mb-4" /><p className="font-bold uppercase tracking-widest text-sm">Select a note</p></div>
@@ -407,6 +466,7 @@ const NotesView = ({ notes, setNotes, categories, setCategories, activeNoteId, s
   );
 };
 
+// --- COMPONENT: GRAPH VIEW (Fixed Mobile Touch & Layout) ---
 const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setView, isMobile }) => {
   const nodeRefs = useRef({});
   const linkRefs = useRef({});
@@ -452,9 +512,6 @@ const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setVie
 
   return (
     <div className={clsx("w-full h-full relative overflow-hidden animate-in fade-in duration-700", !isMobile && "pb-4")}>
-      {/* FIX: Changed 'inset-0' to 'top-[60px]' on mobile. 
-         This pushes the map down so it doesn't hide the 'Graph' header or Log Out button. 
-      */}
       <div className={clsx("bg-slate-900 overflow-hidden border border-slate-800 shadow-2xl select-none flex items-center justify-center", isMobile ? "fixed inset-x-0 bottom-0 top-[60px] z-[0]" : "w-full h-full relative rounded-[2rem]")}>
         <div className="absolute top-6 right-6 z-50 flex flex-col gap-2 bg-slate-800/80 backdrop-blur p-2 rounded-xl border border-slate-700 shadow-xl"><button onClick={() => setTransform(t => ({ ...t, scale: t.scale + 0.2 }))} className="p-2 text-white hover:bg-slate-700 rounded-lg"><Plus size={20} /></button><button onClick={() => setTransform(t => ({ ...t, scale: Math.max(0.1, t.scale - 0.2) }))} className="p-2 text-white hover:bg-slate-700 rounded-lg flex items-center justify-center h-9 w-9 font-bold text-lg">-</button><button onClick={() => setTransform({ x: 0, y: 0, scale: 1 })} className="p-2 text-rose-400 hover:bg-slate-700 rounded-lg"><RotateCcw size={20} /></button></div>
         <div ref={containerRef} onMouseDown={(e) => handleMouseDown(e, null)} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onTouchStart={(e) => { const t = e.touches[0]; handleMouseDown({ ...e, clientX: t.clientX, clientY: t.clientY, target: e.target }, null); }} onTouchMove={(e) => { const t = e.touches[0]; handleMouseMove({ ...e, clientX: t.clientX, clientY: t.clientY }); }} onTouchEnd={handleMouseUp} className="w-full h-full cursor-grab active:cursor-grabbing flex items-center justify-center touch-none">
@@ -464,12 +521,19 @@ const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setVie
           </div>
         </div>
       </div>
-      <div className={clsx("bg-white shadow-2xl flex flex-col transition-all duration-300 ease-out z-[100]", isMobile ? "fixed bottom-0 left-0 right-0 rounded-t-[2rem] border-t border-rose-100" : "absolute right-4 top-4 bottom-4 w-80 rounded-[2rem] border border-rose-100 p-6 animate-in slide-in-from-right-4", (isMobile && !selectedNode) ? "translate-y-[120%]" : "translate-y-0")} style={isMobile ? { maxHeight: '50vh' } : {}}>
+
+      {/* INSPECTOR PANEL */}
+      <div
+        // FIX: Added stopPropagation here to stop drag events bubbling to the canvas
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        className={clsx("bg-white shadow-2xl flex flex-col transition-all duration-300 ease-out z-[100]", isMobile ? "fixed bottom-0 left-0 right-0 rounded-t-[2rem] border-t border-rose-100" : "absolute right-4 top-4 bottom-4 w-80 rounded-[2rem] border border-rose-100 p-6 animate-in slide-in-from-right-4", (isMobile && !selectedNode) ? "translate-y-[120%]" : "translate-y-0")}
+        style={isMobile ? { maxHeight: '60vh' } : {}}
+      >
         {selectedNode && (
           <div className="p-6 h-full flex flex-col">
             {isMobile && <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 shrink-0" />}
 
-            {/* Header Area */}
             <div className="flex justify-between items-start flex-none">
               <div>
                 <div className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">{selectedNode.category}</div>
@@ -478,16 +542,14 @@ const GraphView = ({ notes = [], setNotes, activeNoteId, setActiveNoteId, setVie
               {isMobile && <button onClick={() => setSelectedNode(null)} className="p-1 bg-slate-100 rounded-full text-slate-400"><X size={16} /></button>}
             </div>
 
-            {/* FIX: Added 'flex-1 overflow-y-auto min-h-0'.
-               This creates a scrollable area specifically for text, preventing it from pushing the button off-screen.
-            */}
+            {/* Scrollable Text Area */}
             <div className="flex-1 overflow-y-auto min-h-0 my-4 bg-slate-50 p-3 rounded-xl border border-rose-50/50 custom-scrollbar">
               <div className="text-xs text-slate-500 leading-relaxed whitespace-pre-wrap">
                 {selectedNode.body || <span className="italic opacity-50">No details...</span>}
               </div>
             </div>
 
-            {/* Sticky Footer Button */}
+            {/* Sticky Button Area */}
             <div className="flex-none pt-2">
               <button onClick={() => { setActiveNoteId(selectedNode.id); setView('notes'); }} className="w-full py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center justify-center gap-2">Open Full Note <ArrowRightCircle size={14} /></button>
             </div>
